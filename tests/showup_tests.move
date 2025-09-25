@@ -42,7 +42,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
-            0, // End time in the past
+            0, // End time = 0, current epoch = 0, so 0 >= 0 is true
             STAKE_AMOUNT,
             CAPACITY,
             ctx
@@ -73,7 +73,7 @@ module showup::showup_tests {
         assert!(showup::get_attendees_count(&event) == 0, 4);
         assert!(showup::get_vault_balance(&event) == 0, 5);
         assert!(showup::get_capacity(&event) == CAPACITY, 6);
-        assert!(showup::get_spots_left(&event) == CAPACITY, 7);
+        assert!(showup::spots_left(&event) == CAPACITY, 7);
         assert!(!showup::is_cancelled(&event), 8);
         
         // Clean up
@@ -110,7 +110,7 @@ module showup::showup_tests {
         assert!(showup::get_participants_count(&event) == 1, 0);
         assert!(showup::get_vault_balance(&event) == STAKE_AMOUNT, 1);
         assert!(showup::is_participant(&event, PARTICIPANT1), 2);
-        assert!(showup::get_spots_left(&event) == 1, 3);
+        assert!(showup::spots_left(&event) == 1, 3);
         
         // Clean up
         showup::destroy_event(event);
@@ -336,7 +336,7 @@ module showup::showup_tests {
         
         // Verify capacity is reached
         assert!(showup::get_participants_count(&event) == 2, 0);
-        assert!(showup::get_spots_left(&event) == 0, 1);
+        assert!(showup::spots_left(&event) == 0, 1);
         
         // Clean up
         showup::destroy_event(event);
@@ -505,7 +505,7 @@ module showup::showup_tests {
         test_scenario::end(scenario);
     }
 
-    #[test]
+#[test]
     #[expected_failure(abort_code = E_EVENT_NOT_CANCELLED)]
     fun test_refund_event_not_cancelled() {
         let mut scenario = test_scenario::begin(ORGANIZER);

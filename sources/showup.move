@@ -67,12 +67,16 @@ module showup::showup {
         }
     }
 
-        public fun join_event(
+    public fun join_event(
         event: &mut Event,
         _coins: Coin<SUI>,
         ctx: &mut sui::tx_context::TxContext
     ) {
         let sender = sui::tx_context::sender(ctx);
+        let now = sui::tx_context::epoch(ctx);
+
+        // Must join before event starts
+        assert!(now < event.start_time, E_EVENT_ALREADY_STARTED);
 
         // Verify correct stake
         let amount = coin::value(&_coins);
@@ -88,47 +92,47 @@ module showup::showup {
         let sui_balance = coin::into_balance(_coins);
         balance::join(&mut event.vault, sui_balance);
 
-        // Add participant
+        // Add participant (aborts if already joined)
         table::add(&mut event.participants, sender, true);
     }
 
-        public fun mark_attended(
+    public fun mark_attended(
         event: &mut Event,
         participant: address,
         ctx: &sui::tx_context::TxContext
     ) {
         assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
+        // Only participants can be marked as attended (avoid accidental scans)
+        assert!(table::contains(&event.participants, participant), E_NOT_PARTICIPANT);
+        // Add attendee (aborts if already marked)
         table::add(&mut event.attendees, participant, true);
     }
 
-        public fun claim(
+    public fun claim(
         event: &mut Event,
         ctx: &mut sui::tx_context::TxContext
     ): Coin<SUI> {
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx); // for hackathon just use epoch as timestamp
+        let now = sui::tx_context::epoch(ctx);
 
-        // Ensure event ended
+        // Event must have ended
         assert!(now >= event.end_time, E_EVENT_NOT_ENDED);
 
-        // Ensure sender attended
+        // Must have attended and not already withdrawn (claim/refund)
         assert!(table::contains(&event.attendees, sender), E_DID_NOT_ATTEND);
-
-        // Ensure sender hasn't already claimed
         assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
 
-        // Add to claimed list
+        // Mark claimed first (protect against reentrancy-style patterns)
         table::add(&mut event.claimed, sender, true);
 
-        // Payout = vault / n_attendees
+        // Equal split across attendees
         let n_attendees = table::length(&event.attendees);
-        let _payout_amount = balance::value(&event.vault) / n_attendees;
-        let _payout = balance::split(&mut event.vault, _payout_amount);
-        coin::from_balance(_payout, ctx)
+        // n_attendees > 0 because sender ∈ attendees
+        let payout_amount = balance::value(&event.vault) / n_attendees;
+        let payout_bal = balance::split(&mut event.vault, payout_amount);
+        coin::from_balance(payout_bal, ctx)
     }
 
-    // Cancel event function - only organizer can cancel before start time
-    // This is the ONLY way an organizer can "modify" an event - by cancelling it
     public fun cancel_event(
         event: &mut Event,
         ctx: &mut sui::tx_context::TxContext
@@ -136,33 +140,30 @@ module showup::showup {
         let sender = sui::tx_context::sender(ctx);
         let now = sui::tx_context::epoch(ctx);
         
-        // Only organizer can cancel
         assert!(sender == event.organizer, E_NOT_ORGANIZER);
-        
-        // Can only cancel before start time
         assert!(now < event.start_time, E_EVENT_ALREADY_STARTED);
         
-        // Mark event as cancelled by setting end_time to 0
-        // This is the ONLY mutable field after event creation
+        // Mark cancelled
         event.end_time = 0;
     }
 
-    // Refund function - participants can get their stake back if event is cancelled
     public fun refund(
         event: &mut Event,
         ctx: &mut sui::tx_context::TxContext
     ): Coin<SUI> {
         let sender = sui::tx_context::sender(ctx);
         
-        // Event must be cancelled (end_time = 0)
+        // Only when cancelled
         assert!(event.end_time == 0, E_EVENT_NOT_CANCELLED);
-        
-        // Sender must be a participant
+        // Only participants, and only if not already withdrawn via claim/refund
         assert!(table::contains(&event.participants, sender), E_NOT_PARTICIPANT);
+        assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
         
-        // Calculate refund amount (stake amount per participant)
-        let refund_amount = event.stake_amount;
-        let refund_balance = balance::split(&mut event.vault, refund_amount);
+        // Mark claimed to block double-withdrawal
+        table::add(&mut event.claimed, sender, true);
+        
+        // Fixed refund = stake amount
+        let refund_balance = balance::split(&mut event.vault, event.stake_amount);
         coin::from_balance(refund_balance, ctx)
     }
 
@@ -215,15 +216,16 @@ module showup::showup {
         balance::value(&event.vault)
     }
 
-    public fun get_spots_left(event: &Event): u64 {
-        if (event.capacity == 0) {
-            return 0 // Unlimited capacity
-        };
-        let current_participants = table::length(&event.participants);
-        if (event.capacity <= current_participants) {
-            return 0
-        };
-        event.capacity - current_participants
+    public fun has_unlimited_capacity(event: &Event): bool {
+        event.capacity == 0
+    }
+
+    public fun spots_left(event: &Event): u64 {
+        if (event.capacity == 0) { 
+            0 
+        } else { 
+            event.capacity - table::length(&event.participants) 
+        }
     }
 
     public fun is_cancelled(event: &Event): bool {
