@@ -12,7 +12,7 @@ import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 export default function CreateEvent() {
   const account = useCurrentAccount();
   const router = useRouter();
-  const { createEvent, loading, error } = useShowUpTransactions();
+  const { createEvent, createFundedMockEvent, loading, error } = useShowUpTransactions();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -70,6 +70,58 @@ export default function CreateEvent() {
       router.push(`/events/${eventResult.eventId}`);
     } catch (error) {
       console.error('Error creating event:', error);
+    }
+  };
+
+  const handleCreateFundedMockEvent = async () => {
+    if (!account) return;
+
+    try {
+      // Test parameters for funded mock event
+      const stakeAmount = 1; // 1 SUI per participant
+      const capacity = 3;
+      const participantCount = 2;
+      const attendeeCount = 1;
+      const participantFundAmount = stakeAmount * participantCount; // 2 SUI total
+      const pendingFundAmount = 0; // No pending requests
+      const registrationStartTime = new Date(Date.now());
+
+      // Test addresses (using different addresses for participants)
+      const participants = [
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+        '0x2222222222222222222222222222222222222222222222222222222222222222'
+      ];
+      const attendees = [
+        '0x1111111111111111111111111111111111111111111111111111111111111111'
+      ];
+      const pending: string[] = [];
+
+      const result = await createFundedMockEvent({
+        name: 'Test Claim Event' + registrationStartTime.toISOString(),
+        description: 'Testing claim functionality with funded mock event',
+        location: 'Test Location',
+        stakeAmount: stakeAmount,
+        capacity: capacity,
+        registrationStartTime: new Date(Date.now() + 60 * 1000), // 1 minute from now
+        registrationEndTime: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+        eventStartTime: new Date(Date.now() + 6 * 60 * 1000), // 6 minutes from now
+        eventEndTime: new Date(Date.now() + 7 * 60 * 1000), // 7 minutes from now
+        mustRequestToJoin: false,
+        participants: participants,
+        attendees: attendees,
+        pending: pending,
+        participantFundAmount: participantFundAmount,
+        pendingFundAmount: pendingFundAmount,
+      });
+
+      console.log('Funded mock event created:', result);
+      const eventResult = result as { eventId: string; transactionId: string; message: string };
+      alert(`Funded mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- ${participantCount} participants, ${attendeeCount} attendees\n- ${stakeAmount} SUI stake each = ${participantFundAmount} SUI total\n- Expected reward per attendee: ${participantFundAmount / attendeeCount} SUI`);
+      
+      // Redirect to the created event
+      router.push(`/events/${eventResult.eventId}`);
+    } catch (error) {
+      console.error('Error creating funded mock event:', error);
     }
   };
 
@@ -430,12 +482,22 @@ export default function CreateEvent() {
               </ul>
             </div>
 
-            <div className="flex justify-end space-x-4">
-              <Link href="/">
-                <Button type="button" variant="outline">
-                  Cancel
+            <div className="flex justify-between items-center">
+              <div className="flex space-x-4">
+                <Link href="/">
+                  <Button type="button" variant="outline">
+                    Cancel
+                  </Button>
+                </Link>
+                <Button 
+                  type="button"
+                  onClick={handleCreateFundedMockEvent}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {loading ? 'Creating...' : 'Create Test Event (Funded)'}
                 </Button>
-              </Link>
+              </div>
               <Button 
                 type="submit" 
                 disabled={loading || !formData.name || !formData.description || !formData.location || !formData.stakeAmount}

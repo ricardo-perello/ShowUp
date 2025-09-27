@@ -207,10 +207,10 @@ module showup::showup {
             end_time,
             stake_amount,
             capacity,
-            participants: table::new<address, bool>(ctx),
-            pending_requests: table::new<address, bool>(ctx),
-            attendees: table::new<address, bool>(ctx),
-            claimed: table::new<address, bool>(ctx),
+            participants: vec_map::empty<address, bool>(),
+            pending_requests: vec_map::empty<address, bool>(),
+            attendees: vec_map::empty<address, bool>(),
+            claimed: vec_map::empty<address, bool>(),
             participant_vault: balance::zero<SUI>(),
             pending_vault: balance::zero<SUI>(),
             total_pot: 0xFFFFFFFFFFFFFFFF, // Negative value to indicate uninitialized
@@ -229,8 +229,8 @@ module showup::showup {
         let n = vector::length(&participants);
         while (i < n) {
             let addr = *vector::borrow(&participants, i);
-            if (addr != organizer && !table::contains(&event.participants, addr)) {
-                table::add(&mut event.participants, addr, true);
+            if (addr != organizer && !vec_map::contains(&event.participants, &addr)) {
+                vec_map::insert(&mut event.participants, addr, true);
             };
             i = i + 1;
         };
@@ -240,8 +240,8 @@ module showup::showup {
         let m = vector::length(&pending);
         while (j < m) {
             let addr = *vector::borrow(&pending, j);
-            if (!table::contains(&event.participants, addr) && !table::contains(&event.pending_requests, addr)) {
-                table::add(&mut event.pending_requests, addr, true);
+            if (!vec_map::contains(&event.participants, &addr) && !vec_map::contains(&event.pending_requests, &addr)) {
+                vec_map::insert(&mut event.pending_requests, addr, true);
             };
             j = j + 1;
         };
@@ -251,8 +251,8 @@ module showup::showup {
         let t = vector::length(&attendees);
         while (k < t) {
             let addr = *vector::borrow(&attendees, k);
-            if (table::contains(&event.participants, addr) && !table::contains(&event.attendees, addr)) {
-                table::add(&mut event.attendees, addr, true);
+            if (vec_map::contains(&event.participants, &addr) && !vec_map::contains(&event.attendees, &addr)) {
+                vec_map::insert(&mut event.attendees, addr, true);
             };
             k = k + 1;
         };

@@ -270,6 +270,62 @@ export class TransactionExecutor {
     tx.setGasBudget(100000000);
     return tx;
   }
+
+  // NEW: Create funded mock event transaction
+  createFundedMockEventTransaction(params: {
+    name: string;
+    description: string;
+    location: string;
+    startTime: number;
+    registrationStartTime: number;
+    registrationEndTime: number;
+    endTime: number;
+    stakeAmount: number; // in SUI
+    capacity: number;
+    mustRequestToJoin: boolean;
+    participants: string[];
+    attendees: string[];
+    pending: string[];
+    participantFundAmount: number; // in MIST
+    pendingFundAmount: number; // in MIST
+  }) {
+    console.log('🔧 Creating funded mock event transaction with params:', params);
+    
+    const tx = new Transaction();
+    
+    // Split coins for participant fund
+    const participantFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(params.participantFundAmount)]);
+    
+    // Split coins for pending fund
+    const pendingFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(params.pendingFundAmount)]);
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::create_mock_event`,
+      arguments: [
+        tx.pure.string(params.name),
+        tx.pure.string(params.description),
+        tx.pure.string(params.location),
+        tx.pure.u64(params.startTime),
+        tx.pure.u64(params.registrationStartTime),
+        tx.pure.u64(params.registrationEndTime),
+        tx.pure.u64(params.endTime),
+        tx.pure.u64(params.stakeAmount),
+        tx.pure.u64(params.capacity),
+        tx.pure.bool(params.mustRequestToJoin),
+        tx.pure.vector('address', params.participants),
+        tx.pure.vector('address', params.attendees),
+        tx.pure.vector('address', params.pending),
+        participantFundCoin,
+        pendingFundCoin,
+      ],
+    });
+
+    // Set gas budget
+    tx.setGasBudget(100000000); // 0.1 SUI in MIST
+    console.log('⛽ Gas budget set to:', 100000000, 'MIST (0.1 SUI)');
+
+    return tx;
+  }
 }
 
 // Create executor instance

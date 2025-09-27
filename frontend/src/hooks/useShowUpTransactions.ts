@@ -472,7 +472,7 @@ export function useShowUpTransactions() {
       // Method 1: Query recent transactions to find event creation
       console.log('🔍 Querying recent transactions...');
       
-      // Get recent transactions and look for create_event calls
+      // Get recent transactions and look for both create_event and create_mock_event calls
       const recentTxs = await suiClient.queryTransactionBlocks({
         filter: {
           MoveFunction: {
@@ -489,12 +489,32 @@ export function useShowUpTransactions() {
         order: 'descending',
       });
 
-      console.log('📊 Recent transactions:', recentTxs);
+      // Also query for create_mock_event transactions
+      const mockEventTxs = await suiClient.queryTransactionBlocks({
+        filter: {
+          MoveFunction: {
+            package: PACKAGE_ID,
+            module: 'showup',
+            function: 'create_mock_event',
+          },
+        },
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+        limit: 50,
+        order: 'descending',
+      });
+
+      // Combine both transaction results
+      const allTxs = [...recentTxs.data, ...mockEventTxs.data];
+
+      console.log('📊 All transactions (create_event + create_mock_event):', allTxs);
       
       // Extract event IDs from transaction effects
       const eventIds: string[] = [];
       
-      for (const tx of recentTxs.data) {
+      for (const tx of allTxs) {
         console.log('📄 Processing transaction:', tx.digest);
         
         if (tx.objectChanges) {
@@ -742,6 +762,137 @@ export function useShowUpTransactions() {
     }
   }, [account, signAndExecuteTransaction, handleError]);
 
+  // NEW: Create funded mock event
+  const createFundedMockEvent = useCallback(async (params: {
+    name: string;
+    description: string;
+    location: string;
+    stakeAmount: number; // in SUI
+    capacity: number;
+    registrationStartTime: Date;
+    registrationEndTime: Date;
+    eventStartTime: Date;
+    eventEndTime: Date;
+    mustRequestToJoin: boolean;
+    participants: string[];
+    attendees: string[];
+    pending: string[];
+    participantFundAmount: number; // in SUI
+    pendingFundAmount: number; // in SUI
+  }) => {
+    console.log('🚀 Starting createFundedMockEvent with params:', params);
+    console.log('👤 Account:', account?.address);
+    
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check gas coins first
+      console.log('🔍 Checking gas coins...');
+      const totalNeeded = (params.participantFundAmount + params.pendingFundAmount) * 1_000_000_000 + 100000000; // Convert to MIST + gas
+      const gasCoins = await getUserSUICoins(totalNeeded);
+      if (gasCoins.length === 0) {
+        throw new Error(`Insufficient SUI balance. You need at least ${totalNeeded / 1_000_000_000} SUI for funding + gas.`);
+      }
+      console.log('✅ Gas coins available:', gasCoins.length);
+
+      // Get current Sui epoch from network first
+      const currentEpoch = await transactionExecutor.getCurrentSuiEpoch(suiClient);
+      
+      // Convert Date objects to Unix timestamps, then to Sui epochs
+      const registrationStartEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.registrationStartTime.getTime() / 1000));
+      const registrationEndEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.registrationEndTime.getTime() / 1000));
+      const startEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.eventStartTime.getTime() / 1000));
+      const endEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.eventEndTime.getTime() / 1000));
+      
+      console.log('⏰ Event timing:', { 
+        currentEpoch,
+        registrationStartEpoch, 
+        registrationEndEpoch,
+        startEpoch, 
+        endEpoch,
+        participantFundAmount: params.participantFundAmount,
+        pendingFundAmount: params.pendingFundAmount
+      });
+
+      const tx = transactionExecutor.createFundedMockEventTransaction({
+        name: params.name,
+        description: params.description,
+        location: params.location,
+        startTime: startEpoch,
+        registrationStartTime: registrationStartEpoch,
+        registrationEndTime: registrationEndEpoch,
+        endTime: endEpoch,
+        stakeAmount: Math.floor(params.stakeAmount * 1_000_000_000), // Convert to MIST
+        capacity: params.capacity,
+        mustRequestToJoin: params.mustRequestToJoin,
+        participants: params.participants,
+        attendees: params.attendees,
+        pending: params.pending,
+        participantFundAmount: Math.floor(params.participantFundAmount * 1_000_000_000), // Convert to MIST
+        pendingFundAmount: Math.floor(params.pendingFundAmount * 1_000_000_000), // Convert to MIST
+      });
+
+      console.log('📝 Transaction created, executing...');
+
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Create funded mock event transaction result:', result);
+            // Extract event ID from the transaction result
+            let eventId = 'pending';
+            if (result.effects && typeof result.effects === 'object' && 'created' in result.effects) {
+              // Find the Event object in created objects
+              const createdObjects = (result.effects as Record<string, unknown>).created;
+              if (Array.isArray(createdObjects)) {
+                for (const obj of createdObjects) {
+                  if (obj.reference && obj.reference.objectId) {
+                    // This is likely the Event object
+                    eventId = obj.reference.objectId;
+                    break;
+                  }
+                }
+              }
+            }
+            
+            console.log('🎉 Funded mock event created with ID:', eventId);
+            
+            // Add the new event ID to the cache
+            if (eventId !== 'pending') {
+              setDiscoveredEventIds(prev => {
+                const updated = [...new Set([...prev, eventId])];
+                console.log('💾 Added new event to cache:', eventId, 'Total cached:', updated.length);
+                return updated;
+              });
+            }
+            
+            resolve({
+              eventId,
+              transactionId: result.digest || 'pending',
+              message: 'Funded mock event created successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Create funded mock event failed:', error);
+            setError(error.message || 'Failed to create funded mock event');
+            reject(error);
+          }
+        });
+      });
+    } catch (err) {
+      console.error('💥 Create funded mock event error:', err);
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
+
   return {
     // State
     loading,
@@ -749,6 +900,7 @@ export function useShowUpTransactions() {
     
     // Actions
     createEvent,
+    createFundedMockEvent, // NEW
     joinEvent,
     requestToJoin, // NEW
     acceptRequests, // NEW
