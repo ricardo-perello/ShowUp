@@ -17,6 +17,7 @@ module showup::showup_tests {
         E_NOT_PARTICIPANT,
         E_EVENT_REQUIRES_APPROVAL,
         E_REGISTRATION_ENDED,
+        E_REGISTRATION_NOT_STARTED,
         E_ORGANIZER_CANNOT_PARTICIPATE,
     };
 
@@ -28,6 +29,7 @@ module showup::showup_tests {
     const STAKE_AMOUNT: u64 = 1000;
     const END_TIME: u64 = 1000; // Set to future time so event is not ended in tests
     const START_TIME: u64 = 100;
+    const REGISTRATION_START_TIME: u64 = 0; // Registration starts immediately
     const REGISTRATION_END_TIME: u64 = 90; // Before start time
     const CAPACITY: u64 = 2;
     const EVENT_NAME: vector<u8> = b"Test Event";
@@ -46,6 +48,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             0, // End time = 0, current epoch = 0, so 0 >= 0 is true
             STAKE_AMOUNT,
@@ -65,6 +68,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -90,6 +94,38 @@ module showup::showup_tests {
     }
 
     #[test]
+    #[expected_failure(abort_code = E_REGISTRATION_NOT_STARTED)]
+    fun test_join_event_before_registration_starts() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create event with registration starting at time 10
+        let mut event = showup::create_event_for_testing(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            10, // Registration starts at time 10
+            REGISTRATION_END_TIME,
+            END_TIME,
+            STAKE_AMOUNT,
+            CAPACITY,
+            false, // public event
+            ctx
+        );
+        
+        // Try to join before registration starts (current epoch = 0, registration starts at 10)
+        let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin, ctx);
+        
+        // Clean up
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
     fun test_join_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -99,6 +135,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -137,6 +174,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -211,6 +249,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -242,6 +281,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -269,6 +309,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -324,6 +365,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -360,6 +402,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -416,6 +459,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -467,6 +511,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -498,6 +543,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -534,6 +580,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -570,6 +617,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -619,6 +667,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -669,6 +718,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -751,6 +801,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -797,6 +848,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -867,6 +919,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             1000, // stake amount = 1000, so total pot = 3000
@@ -933,6 +986,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             1000, // stake amount = 1000
@@ -998,6 +1052,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             1000, // stake amount = 1000
@@ -1084,6 +1139,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1113,6 +1169,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1142,6 +1199,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             2000, // Future end time
             STAKE_AMOUNT,
@@ -1218,6 +1276,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1257,6 +1316,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1297,6 +1357,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1327,6 +1388,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1373,6 +1435,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1402,6 +1465,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             0, // Start time in the past
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1429,6 +1493,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1464,6 +1529,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,

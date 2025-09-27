@@ -23,9 +23,10 @@ module showup::showup {
     const E_EVENT_REQUIRES_APPROVAL: u64 = 9;
     const E_NOT_IN_REQUESTS: u64 = 10;
     const E_REGISTRATION_ENDED: u64 = 11;
-    const E_ORGANIZER_CANNOT_PARTICIPATE: u64 = 12;
-    const E_ALREADY_PARTICIPANT: u64 = 13;
-    const E_ALREADY_REQUESTED: u64 = 14;
+    const E_REGISTRATION_NOT_STARTED: u64 = 12;
+    const E_ORGANIZER_CANNOT_PARTICIPATE: u64 = 13;
+    const E_ALREADY_PARTICIPANT: u64 = 14;
+    const E_ALREADY_REQUESTED: u64 = 15;
 
     /// Event object definition
     /// COMPLETELY IMMUTABLE after creation - NO ONE can modify event details
@@ -38,6 +39,7 @@ module showup::showup {
         description: String,             // Immutable - cannot be changed
         location: String,                // Immutable - cannot be changed
         start_time: u64,                 // Immutable - cannot be changed
+        registration_start_time: u64,    // Immutable - cannot join/request before this time
         registration_end_time: u64,      // Immutable - cannot join/request after this time
         end_time: u64,                   // Mutable - only gets set to 0 when cancelled
         stake_amount: u64,               // Immutable - cannot be changed
@@ -56,6 +58,7 @@ module showup::showup {
         description: String,
         location: String,
         start_time: u64,
+        registration_start_time: u64,
         registration_end_time: u64,
         end_time: u64,
         stake_amount: u64,
@@ -71,6 +74,7 @@ module showup::showup {
             description,
             location,
             start_time,
+            registration_start_time,
             registration_end_time,
             end_time,
             stake_amount,
@@ -95,6 +99,7 @@ module showup::showup {
         description: String,
         location: String,
         start_time: u64,
+        registration_start_time: u64,
         registration_end_time: u64,
         end_time: u64,
         stake_amount: u64,
@@ -110,6 +115,7 @@ module showup::showup {
             description,
             location,
             start_time,
+            registration_start_time,
             registration_end_time,
             end_time,
             stake_amount,
@@ -140,6 +146,9 @@ module showup::showup {
 
         // Must not already be a participant
         assert!(!table::contains(&event.participants, sender), E_ALREADY_PARTICIPANT);
+
+        // Must join after registration starts
+        assert!(now >= event.registration_start_time, E_REGISTRATION_NOT_STARTED);
 
         // Must join before registration ends
         assert!(now < event.registration_end_time, E_REGISTRATION_ENDED);
@@ -181,6 +190,9 @@ module showup::showup {
 
         // Must not already have a pending request
         assert!(!table::contains(&event.pending_requests, sender), E_ALREADY_REQUESTED);
+
+        // Must request after registration starts
+        assert!(now >= event.registration_start_time, E_REGISTRATION_NOT_STARTED);
 
         // Must request before registration ends
         assert!(now < event.registration_end_time, E_REGISTRATION_ENDED);
@@ -559,6 +571,10 @@ module showup::showup {
         table::length(&event.participants) + table::length(&event.pending_requests)
     }
 
+    public fun get_registration_start_time(event: &Event): u64 {
+        event.registration_start_time
+    }
+
     public fun get_registration_end_time(event: &Event): u64 {
         event.registration_end_time
     }
@@ -569,6 +585,12 @@ module showup::showup {
     #[test_only]
     public fun set_end_time(event: &mut Event, new_end_time: u64) {
         event.end_time = new_end_time;
+    }
+
+    // Test-only function to set registration start time for testing
+    #[test_only]
+    public fun set_registration_start_time(event: &mut Event, new_registration_start_time: u64) {
+        event.registration_start_time = new_registration_start_time;
     }
 
     // Test-only function to set registration end time for testing
@@ -588,6 +610,7 @@ module showup::showup {
             description: _,
             location: _,
             start_time: _,
+            registration_start_time: _,
             registration_end_time: _,
             end_time: _,
             stake_amount: _,
