@@ -17,6 +17,7 @@ module showup::showup_tests {
         E_NOT_PARTICIPANT,
         E_EVENT_REQUIRES_APPROVAL,
         E_REGISTRATION_ENDED,
+        E_ORGANIZER_CANNOT_PARTICIPATE,
     };
 
     // Test constants
@@ -851,6 +852,64 @@ module showup::showup_tests {
         assert!(showup::get_participant_vault_balance(&event) == 0, 2);
         
         // Clean up
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = E_ORGANIZER_CANNOT_PARTICIPATE)]
+    fun test_organizer_cannot_join_public_event() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create public event
+        let mut event = showup::create_event(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            REGISTRATION_END_TIME,
+            END_TIME,
+            STAKE_AMOUNT,
+            CAPACITY,
+            false, // public event
+            ctx
+        );
+        
+        // Try to join as organizer (should fail)
+        let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
+        showup::join_event(&mut event, coin, test_scenario::ctx(&mut scenario));
+        
+        // Clean up (this won't be reached due to expected failure, but needed for compilation)
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = E_ORGANIZER_CANNOT_PARTICIPATE)]
+    fun test_organizer_cannot_request_private_event() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create private event
+        let mut event = showup::create_event(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            REGISTRATION_END_TIME,
+            END_TIME,
+            STAKE_AMOUNT,
+            CAPACITY,
+            true, // private event
+            ctx
+        );
+        
+        // Try to request to join as organizer (should fail)
+        let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
+        showup::request_to_join(&mut event, coin, test_scenario::ctx(&mut scenario));
+        
+        // Clean up (this won't be reached due to expected failure, but needed for compilation)
         showup::destroy_event(event);
         test_scenario::end(scenario);
     }

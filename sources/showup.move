@@ -23,6 +23,7 @@ module showup::showup {
     const E_EVENT_REQUIRES_APPROVAL: u64 = 9;
     const E_NOT_IN_REQUESTS: u64 = 10;
     const E_REGISTRATION_ENDED: u64 = 11;
+    const E_ORGANIZER_CANNOT_PARTICIPATE: u64 = 12;
 
     /// Event object definition
     /// COMPLETELY IMMUTABLE after creation - NO ONE can modify event details
@@ -93,6 +94,9 @@ module showup::showup {
         let sender = sui::tx_context::sender(ctx);
         let now = sui::tx_context::epoch(ctx);
 
+        // Organizer cannot participate in their own event
+        assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
+
         // Must join before registration ends
         assert!(now < event.registration_end_time, E_REGISTRATION_ENDED);
 
@@ -124,6 +128,9 @@ module showup::showup {
 
         let sender = sui::tx_context::sender(ctx);
         let now = sui::tx_context::epoch(ctx);
+
+        // Organizer cannot participate in their own event
+        assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
 
         // Must request before registration ends
         assert!(now < event.registration_end_time, E_REGISTRATION_ENDED);
