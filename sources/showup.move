@@ -23,7 +23,10 @@ module showup::showup {
     const E_EVENT_REQUIRES_APPROVAL: u64 = 9;
     const E_NOT_IN_REQUESTS: u64 = 10;
     const E_REGISTRATION_ENDED: u64 = 11;
-    const E_ORGANIZER_CANNOT_PARTICIPATE: u64 = 12;
+    const E_REGISTRATION_NOT_STARTED: u64 = 12;
+    const E_ORGANIZER_CANNOT_PARTICIPATE: u64 = 13;
+    const E_ALREADY_PARTICIPANT: u64 = 14;
+    const E_ALREADY_REQUESTED: u64 = 15;
 
     /// Event object definition
     /// COMPLETELY IMMUTABLE after creation - NO ONE can modify event details
@@ -36,6 +39,7 @@ module showup::showup {
         description: String,             // Immutable - cannot be changed
         location: String,                // Immutable - cannot be changed
         start_time: u64,                 // Immutable - cannot be changed
+        registration_start_time: u64,    // Immutable - cannot join/request before this time
         registration_end_time: u64,      // Immutable - cannot join/request after this time
         end_time: u64,                   // Mutable - only gets set to 0 when cancelled
         stake_amount: u64,               // Immutable - cannot be changed
@@ -49,11 +53,12 @@ module showup::showup {
         total_pot: u64,                      // Mutable - total pot for fair splitting (negative = uninitialized)
     }
 
-    public fun create_event(
+    public entry fun create_event(
         name: String,
         description: String,
         location: String,
         start_time: u64,
+        registration_start_time: u64,
         registration_end_time: u64,
         end_time: u64,
         stake_amount: u64,
@@ -69,6 +74,7 @@ module showup::showup {
             description,
             location,
             start_time,
+            registration_start_time,
             registration_end_time,
             end_time,
             stake_amount,
@@ -80,7 +86,6 @@ module showup::showup {
             participant_vault: balance::zero<SUI>(),
             pending_vault: balance::zero<SUI>(),
             total_pot: 0xFFFFFFFFFFFFFFFF, // Negative value to indicate uninitialized
-        
         };
         
         // Make the event a shared object so anyone can join
@@ -94,6 +99,7 @@ module showup::showup {
         description: String,
         location: String,
         start_time: u64,
+        registration_start_time: u64,
         registration_end_time: u64,
         end_time: u64,
         stake_amount: u64,
@@ -109,6 +115,7 @@ module showup::showup {
             description,
             location,
             start_time,
+            registration_start_time,
             registration_end_time,
             end_time,
             stake_amount,
@@ -123,7 +130,7 @@ module showup::showup {
         }
     }
 
-    public fun join_event(
+    public entry fun join_event(
         event: &mut Event,
         _coins: Coin<SUI>,
         ctx: &mut sui::tx_context::TxContext
@@ -136,6 +143,12 @@ module showup::showup {
 
         // Organizer cannot participate in their own event
         assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
+
+        // Must not already be a participant
+        assert!(!table::contains(&event.participants, sender), E_ALREADY_PARTICIPANT);
+
+        // Must join after registration starts
+        assert!(now >= event.registration_start_time, E_REGISTRATION_NOT_STARTED);
 
         // Must join before registration ends
         assert!(now < event.registration_end_time, E_REGISTRATION_ENDED);
@@ -154,13 +167,11 @@ module showup::showup {
         let sui_balance = coin::into_balance(_coins);
         balance::join(&mut event.participant_vault, sui_balance);
 
-        // Add participant (only if not already joined)
-        if (!table::contains(&event.participants, sender)) {
-            table::add(&mut event.participants, sender, true);
-        };
+        // Add participant (guaranteed not present due to assert above)
+        table::add(&mut event.participants, sender, true);
     }
 
-    public fun request_to_join(
+    public entry fun request_to_join(
         event: &mut Event,
         _coins: Coin<SUI>,
         ctx: &mut sui::tx_context::TxContext
@@ -173,6 +184,15 @@ module showup::showup {
 
         // Organizer cannot participate in their own event
         assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
+
+        // Must not already be a participant
+        assert!(!table::contains(&event.participants, sender), E_ALREADY_PARTICIPANT);
+
+        // Must not already have a pending request
+        assert!(!table::contains(&event.pending_requests, sender), E_ALREADY_REQUESTED);
+
+        // Must request after registration starts
+        assert!(now >= event.registration_start_time, E_REGISTRATION_NOT_STARTED);
 
         // Must request before registration ends
         assert!(now < event.registration_end_time, E_REGISTRATION_ENDED);
@@ -192,14 +212,14 @@ module showup::showup {
         let sui_balance = coin::into_balance(_coins);
         balance::join(&mut event.pending_vault, sui_balance);
 
-        // Add to pending requests (aborts if already requested)
+        // Add to pending requests (guaranteed not present due to assert above)
         table::add(&mut event.pending_requests, sender, true);
     }
 
-    public fun accept_requests(
+    public entry fun accept_requests(
         event: &mut Event,
         participants: vector<address>,
-        ctx: &sui::tx_context::TxContext
+        ctx: &mut sui::tx_context::TxContext
     ) {
         assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
         
@@ -227,7 +247,7 @@ module showup::showup {
         };
     }
 
-    public fun reject_requests(
+    public entry fun reject_requests(
         event: &mut Event,
         participants: vector<address>,
         ctx: &mut sui::tx_context::TxContext
@@ -250,7 +270,7 @@ module showup::showup {
         };
     }
 
-    public fun withdraw_from_event(
+    public entry fun withdraw_from_event(
         event: &mut Event,
         ctx: &mut sui::tx_context::TxContext
     ) {
@@ -270,10 +290,10 @@ module showup::showup {
         table::remove(&mut event.participants, sender);
     }
 
-    public fun mark_attended(
+    public entry fun mark_attended(
         event: &mut Event,
         participants: vector<address>,
-        ctx: &sui::tx_context::TxContext
+        ctx: &mut sui::tx_context::TxContext
     ) {
         assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
         
@@ -305,11 +325,6 @@ module showup::showup {
         assert!(table::contains(&event.participants, sender), E_NOT_PARTICIPANT);
         assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
 
-        // Mark claimed first (protect against reentrancy-style patterns)
-        if (!table::contains(&event.claimed, sender)) {
-            table::add(&mut event.claimed, sender, true);
-        };
-
         // Check if anyone attended
         let n_attendees = table::length(&event.attendees);
         if (n_attendees == 0) {
@@ -322,8 +337,24 @@ module showup::showup {
                 event.total_pot = balance::value(&event.participant_vault);
             };
             
-            let refund_amount = event.total_pot / n_participants;
-            let refund_balance = balance::split(&mut event.participant_vault, refund_amount);
+            // Calculate split amounts fresh each time
+            let base_amount = event.total_pot / n_participants;
+            let remainder = event.total_pot % n_participants;
+            let claim_count = table::length(&event.claimed); // Count before marking current user as claimed
+            
+            // Calculate payout: first remainder participants get base_amount + 1
+            let payout_amount = if (claim_count < remainder) {
+                base_amount + 1
+            } else {
+                base_amount
+            };
+            
+            // Mark claimed after calculating payout (protect against reentrancy-style patterns)
+            if (!table::contains(&event.claimed, sender)) {
+                table::add(&mut event.claimed, sender, true);
+            };
+            
+            let refund_balance = balance::split(&mut event.participant_vault, payout_amount);
             coin::from_balance(refund_balance, ctx)
         } else {
             // Someone attended - check if this participant attended
@@ -334,8 +365,23 @@ module showup::showup {
                 event.total_pot = balance::value(&event.participant_vault);
             };
             
-            // Equal split across attendees
-            let payout_amount = event.total_pot / n_attendees;
+            // Calculate split amounts fresh each time
+            let base_amount = event.total_pot / n_attendees;
+            let remainder = event.total_pot % n_attendees;
+            let claim_count = table::length(&event.claimed); // Count before marking current user as claimed
+            
+            // Calculate payout: first remainder attendees get base_amount + 1
+            let payout_amount = if (claim_count < remainder) {
+                base_amount + 1
+            } else {
+                base_amount
+            };
+            
+            // Mark claimed after calculating payout (protect against reentrancy-style patterns)
+            if (!table::contains(&event.claimed, sender)) {
+                table::add(&mut event.claimed, sender, true);
+            };
+            
             let payout_bal = balance::split(&mut event.participant_vault, payout_amount);
             coin::from_balance(payout_bal, ctx)
         }
@@ -368,7 +414,7 @@ module showup::showup {
         coin::from_balance(refund_balance, ctx)
     }
 
-    public fun cancel_event(
+    public entry fun cancel_event(
         event: &mut Event,
         ctx: &mut sui::tx_context::TxContext
     ) {
@@ -378,8 +424,9 @@ module showup::showup {
         assert!(sender == event.organizer, E_NOT_ORGANIZER);
         assert!(now < event.start_time, E_EVENT_ALREADY_STARTED);
         
-        // Mark cancelled
+        // Mark cancelled and unlock pending refunds immediately
         event.end_time = 0;
+        event.registration_end_time = 0;
     }
 
     public fun refund(
@@ -402,6 +449,25 @@ module showup::showup {
         // Fixed refund = stake amount from participant vault
         let refund_balance = balance::split(&mut event.participant_vault, event.stake_amount);
         coin::from_balance(refund_balance, ctx)
+    }
+
+    // Entry wrappers for shared-object use that transfer coins to the caller
+    public entry fun claim_entry(event: &mut Event, ctx: &mut sui::tx_context::TxContext) {
+        let coin_out = claim(event, ctx);
+        let sender = sui::tx_context::sender(ctx);
+        sui::transfer::public_transfer(coin_out, sender);
+    }
+
+    public entry fun claim_pending_stake_entry(event: &mut Event, ctx: &mut sui::tx_context::TxContext) {
+        let coin_out = claim_pending_stake(event, ctx);
+        let sender = sui::tx_context::sender(ctx);
+        sui::transfer::public_transfer(coin_out, sender);
+    }
+
+    public entry fun refund_entry(event: &mut Event, ctx: &mut sui::tx_context::TxContext) {
+        let coin_out = refund(event, ctx);
+        let sender = sui::tx_context::sender(ctx);
+        sui::transfer::public_transfer(coin_out, sender);
     }
 
     // Getter functions for testing and frontend
@@ -505,6 +571,10 @@ module showup::showup {
         table::length(&event.participants) + table::length(&event.pending_requests)
     }
 
+    public fun get_registration_start_time(event: &Event): u64 {
+        event.registration_start_time
+    }
+
     public fun get_registration_end_time(event: &Event): u64 {
         event.registration_end_time
     }
@@ -515,6 +585,12 @@ module showup::showup {
     #[test_only]
     public fun set_end_time(event: &mut Event, new_end_time: u64) {
         event.end_time = new_end_time;
+    }
+
+    // Test-only function to set registration start time for testing
+    #[test_only]
+    public fun set_registration_start_time(event: &mut Event, new_registration_start_time: u64) {
+        event.registration_start_time = new_registration_start_time;
     }
 
     // Test-only function to set registration end time for testing
@@ -534,6 +610,7 @@ module showup::showup {
             description: _,
             location: _,
             start_time: _,
+            registration_start_time: _,
             registration_end_time: _,
             end_time: _,
             stake_amount: _,

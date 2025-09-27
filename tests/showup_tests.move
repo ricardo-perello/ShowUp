@@ -17,6 +17,7 @@ module showup::showup_tests {
         E_NOT_PARTICIPANT,
         E_EVENT_REQUIRES_APPROVAL,
         E_REGISTRATION_ENDED,
+        E_REGISTRATION_NOT_STARTED,
         E_ORGANIZER_CANNOT_PARTICIPATE,
     };
 
@@ -28,6 +29,7 @@ module showup::showup_tests {
     const STAKE_AMOUNT: u64 = 1000;
     const END_TIME: u64 = 1000; // Set to future time so event is not ended in tests
     const START_TIME: u64 = 100;
+    const REGISTRATION_START_TIME: u64 = 0; // Registration starts immediately
     const REGISTRATION_END_TIME: u64 = 90; // Before start time
     const CAPACITY: u64 = 2;
     const EVENT_NAME: vector<u8> = b"Test Event";
@@ -46,6 +48,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             0, // End time = 0, current epoch = 0, so 0 >= 0 is true
             STAKE_AMOUNT,
@@ -65,6 +68,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -90,6 +94,38 @@ module showup::showup_tests {
     }
 
     #[test]
+    #[expected_failure(abort_code = E_REGISTRATION_NOT_STARTED)]
+    fun test_join_event_before_registration_starts() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create event with registration starting at time 10
+        let mut event = showup::create_event_for_testing(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            10, // Registration starts at time 10
+            REGISTRATION_END_TIME,
+            END_TIME,
+            STAKE_AMOUNT,
+            CAPACITY,
+            false, // public event
+            ctx
+        );
+        
+        // Try to join before registration starts (current epoch = 0, registration starts at 10)
+        let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin, ctx);
+        
+        // Clean up
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
     fun test_join_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -99,6 +135,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -137,6 +174,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -211,6 +249,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -242,6 +281,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -269,6 +309,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -324,6 +365,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -360,6 +402,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -416,6 +459,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -467,6 +511,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -498,6 +543,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -534,6 +580,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -570,6 +617,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -619,6 +667,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -669,6 +718,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -751,6 +801,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -797,6 +848,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -857,6 +909,225 @@ module showup::showup_tests {
     }
 
     #[test]
+    fun test_remainder_distribution_no_attendees() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create event with 3 participants, total pot will be 1000 (not divisible by 3)
+        let mut event = showup::create_event_for_testing(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            REGISTRATION_START_TIME,
+            REGISTRATION_END_TIME,
+            END_TIME,
+            1000, // stake amount = 1000, so total pot = 3000
+            0, // unlimited capacity
+            false, // public event
+            ctx
+        );
+        
+        // 3 participants join (total pot = 3000)
+        let coin1 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin1, ctx);
+        
+        let coin2 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin2, ctx);
+        
+        let coin3 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin3, ctx);
+        
+        // End event
+        showup::set_end_time(&mut event, 0);
+        
+        // Expected: 3000 / 3 = 1000 base, remainder = 0
+        // All should get exactly 1000
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout1 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout1) == 1000, 0);
+        sui::transfer::public_transfer(payout1, PARTICIPANT1);
+        
+        test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout2 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout2) == 1000, 1);
+        sui::transfer::public_transfer(payout2, PARTICIPANT2);
+        
+        test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout3 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout3) == 1000, 2);
+        sui::transfer::public_transfer(payout3, PARTICIPANT3);
+        
+        // Verify vault is empty (no remainder left)
+        assert!(showup::get_participant_vault_balance(&event) == 0, 3);
+        
+        // Clean up
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_remainder_distribution_with_remainder() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create event with 3 participants, total pot will be 1001 (not divisible by 3)
+        let mut event = showup::create_event_for_testing(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            REGISTRATION_START_TIME,
+            REGISTRATION_END_TIME,
+            END_TIME,
+            1000, // stake amount = 1000
+            0, // unlimited capacity
+            false, // public event
+            ctx
+        );
+        
+        // 3 participants join, then one withdraws (total pot = 3000, 2 participants remain)
+        let coin1 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin1, ctx);
+        
+        let coin2 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin2, ctx);
+        
+        let coin3 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin3, ctx);
+        
+        // Participant 3 withdraws (forfeits stake, total pot remains 3000, 2 participants remain)
+        test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::withdraw_from_event(&mut event, ctx);
+        
+        // End event
+        showup::set_end_time(&mut event, 0);
+        
+        // Expected: 3000 / 2 = 1500 base, remainder = 0
+        // Both should get exactly 1500
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout1 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout1) == 1500, 0);
+        sui::transfer::public_transfer(payout1, PARTICIPANT1);
+        
+        test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout2 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout2) == 1500, 1);
+        sui::transfer::public_transfer(payout2, PARTICIPANT2);
+        
+        // Verify vault is empty (no remainder left)
+        assert!(showup::get_participant_vault_balance(&event) == 0, 2);
+        
+        // Clean up
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_remainder_distribution_uneven_split() {
+        let mut scenario = test_scenario::begin(ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);
+        
+        // Create event with 5 participants, total pot will be 1003 (not divisible by 5)
+        let mut event = showup::create_event_for_testing(
+            create_test_string(EVENT_NAME),
+            create_test_string(EVENT_DESCRIPTION),
+            create_test_string(EVENT_LOCATION),
+            START_TIME,
+            REGISTRATION_START_TIME,
+            REGISTRATION_END_TIME,
+            END_TIME,
+            1000, // stake amount = 1000
+            0, // unlimited capacity
+            false, // public event
+            ctx
+        );
+        
+        // 5 participants join, then 2 withdraw (total pot = 5000, 3 participants remain)
+        let coin1 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, @0x4);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin1, ctx);
+        
+        let coin2 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, @0x5);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin2, ctx);
+        
+        let coin3 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, @0x6);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin3, ctx);
+        
+        let coin4 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, @0x7);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin4, ctx);
+        
+        let coin5 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, @0x8);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::join_event(&mut event, coin5, ctx);
+        
+        // 2 participants withdraw (forfeits stake, total pot remains 5000, 3 participants remain)
+        test_scenario::next_tx(&mut scenario, @0x7);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::withdraw_from_event(&mut event, ctx);
+        
+        test_scenario::next_tx(&mut scenario, @0x8);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::withdraw_from_event(&mut event, ctx);
+        
+        // End event
+        showup::set_end_time(&mut event, 0);
+        
+        // Expected: 5000 / 3 = 1666 base, remainder = 2
+        // First 2 claimers get 1667, third gets 1666
+        test_scenario::next_tx(&mut scenario, @0x4);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout1 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout1) == 1667, 0); // First claimer gets base + 1
+        sui::transfer::public_transfer(payout1, @0x4);
+        
+        test_scenario::next_tx(&mut scenario, @0x5);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout2 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout2) == 1667, 1); // Second claimer gets base + 1
+        sui::transfer::public_transfer(payout2, @0x5);
+        
+        test_scenario::next_tx(&mut scenario, @0x6);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout3 = showup::claim(&mut event, ctx);
+        assert!(coin::value(&payout3) == 1666, 2); // Third claimer gets base amount
+        sui::transfer::public_transfer(payout3, @0x6);
+        
+        // Verify vault is empty (no remainder left)
+        assert!(showup::get_participant_vault_balance(&event) == 0, 3);
+        
+        // Clean up
+        showup::destroy_event(event);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
     #[expected_failure(abort_code = E_ORGANIZER_CANNOT_PARTICIPATE)]
     fun test_organizer_cannot_join_public_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
@@ -868,6 +1139,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -897,6 +1169,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -926,6 +1199,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             2000, // Future end time
             STAKE_AMOUNT,
@@ -1002,6 +1276,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1041,6 +1316,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1081,6 +1357,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1111,6 +1388,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1157,6 +1435,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1186,6 +1465,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             0, // Start time in the past
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1213,6 +1493,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
@@ -1248,6 +1529,7 @@ module showup::showup_tests {
             create_test_string(EVENT_DESCRIPTION),
             create_test_string(EVENT_LOCATION),
             START_TIME,
+            REGISTRATION_START_TIME,
             REGISTRATION_END_TIME,
             END_TIME,
             STAKE_AMOUNT,
