@@ -142,7 +142,7 @@ export default function EventDetailsPage() {
 
     setIsClaiming(true);
     try {
-      const result = await claim(eventId);
+      const result = await claim(eventId) as { transactionId: string; message: string };
       alert(`Successfully claimed rewards! Transaction: ${result.transactionId}`);
       
       // Refresh event data
@@ -160,7 +160,7 @@ export default function EventDetailsPage() {
 
     setIsRefunding(true);
     try {
-      const result = await refund(eventId);
+      const result = await refund(eventId) as { transactionId: string; message: string };
       alert(`Successfully refunded! Transaction: ${result.transactionId}`);
       
       // Refresh event data
@@ -355,8 +355,37 @@ export default function EventDetailsPage() {
   const hasClaimed = Array.isArray(event.claimed) ? event.claimed.includes(account.address) : false;
   const isCancelled = (event.end_time as string) === '0';
   const currentTime = Math.floor(Date.now() / 1000);
-  const eventEnded = currentTime >= parseInt(event.end_time as string);
-  const eventStarted = currentTime >= parseInt(event.start_time as string);
+  
+  // Parse times more robustly
+  const startTimeStr = event.start_time as string;
+  const endTimeStr = event.end_time as string;
+  
+  // Handle different time formats
+  let startTime = parseInt(startTimeStr);
+  let endTime = parseInt(endTimeStr);
+  
+  // If the time seems too large (milliseconds), convert to seconds
+  if (startTime > 10000000000) { // More than year 2001 in seconds
+    startTime = Math.floor(startTime / 1000);
+  }
+  if (endTime > 10000000000) {
+    endTime = Math.floor(endTime / 1000);
+  }
+  
+  // Debug time values
+  console.log('🕐 Time Debug:', {
+    currentTime,
+    startTimeRaw: startTimeStr,
+    endTimeRaw: endTimeStr,
+    startTimeParsed: startTime,
+    endTimeParsed: endTime,
+    eventStarted: currentTime >= startTime,
+    eventEnded: currentTime >= endTime,
+    timeDiff: currentTime - startTime
+  });
+  
+  const eventEnded = currentTime >= endTime;
+  const eventStarted = currentTime >= startTime;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -522,8 +551,8 @@ export default function EventDetailsPage() {
                 </Button>
               )}
 
-              {/* Claim buttons for participants after event ends */}
-              {isParticipant && eventEnded && !isCancelled && !hasClaimed && (
+              {/* Claim buttons for participants after event starts */}
+              {isParticipant && eventStarted && !isCancelled && !hasClaimed && (
                 <Button 
                   onClick={handleClaim} 
                   disabled={isClaiming || !isAttendee}

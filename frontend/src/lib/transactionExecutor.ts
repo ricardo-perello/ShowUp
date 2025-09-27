@@ -84,7 +84,7 @@ export class TransactionExecutor {
   }
 
   // Claim transaction
-  claimTransaction(eventId: string) {
+  claimTransaction(eventId: string, sender: string) {
     const tx = new Transaction();
     
     const [coin] = tx.moveCall({
@@ -96,7 +96,7 @@ export class TransactionExecutor {
     });
 
     // Transfer the claimed coin back to user
-    tx.transferObjects([coin], tx.pure.address('$SENDER'));
+    tx.transferObjects([coin], tx.pure.address(sender));
 
     // Set gas budget
     tx.setGasBudget(100000000); // 0.1 SUI in MIST
@@ -105,7 +105,7 @@ export class TransactionExecutor {
   }
 
   // Refund transaction
-  refundTransaction(eventId: string) {
+  refundTransaction(eventId: string, sender: string) {
     const tx = new Transaction();
     
     const [coin] = tx.moveCall({
@@ -117,7 +117,7 @@ export class TransactionExecutor {
     });
 
     // Transfer the refunded coin back to user
-    tx.transferObjects([coin], tx.pure.address('$SENDER'));
+    tx.transferObjects([coin], tx.pure.address(sender));
 
     // Set gas budget
     tx.setGasBudget(100000000); // 0.1 SUI in MIST

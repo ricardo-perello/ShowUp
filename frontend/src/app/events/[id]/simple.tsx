@@ -44,7 +44,7 @@ export default function SimpleEventDetailsPage() {
 
     setIsClaiming(true);
     try {
-      const result = await claim(eventId);
+      const result = await claim(eventId) as { transactionId: string; message: string };
       alert(`Successfully claimed rewards! Transaction: ${result.transactionId}`);
     } catch (err) {
       console.error('Error claiming:', err);
@@ -59,7 +59,7 @@ export default function SimpleEventDetailsPage() {
 
     setIsRefunding(true);
     try {
-      const result = await refund(eventId);
+      const result = await refund(eventId) as { transactionId: string; message: string };
       alert(`Successfully refunded! Transaction: ${result.transactionId}`);
     } catch (err) {
       console.error('Error refunding:', err);

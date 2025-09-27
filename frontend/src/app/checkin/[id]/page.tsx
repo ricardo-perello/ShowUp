@@ -20,6 +20,7 @@ export default function CheckinPage() {
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [markingAttendance, setMarkingAttendance] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   const handleMarkAttendance = useCallback(async (participantAddress: string) => {
@@ -40,11 +41,13 @@ export default function CheckinPage() {
       setTimeout(() => {
         setLastScanned(null);
         setMarkingAttendance(null);
+        setIsProcessing(false); // Reset processing state
       }, 2000);
     } catch (error) {
       console.error('Error marking attendance:', error);
       alert(`Failed to mark attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setMarkingAttendance(null);
+      setIsProcessing(false); // Reset processing state on error
     }
   }, [markingAttendance, markAttendance, eventId]);
 
@@ -57,6 +60,7 @@ export default function CheckinPage() {
 
   const startScanning = () => {
     setIsScanning(true);
+    setIsProcessing(false); // Reset processing state when starting to scan
   };
 
   // Use useEffect to initialize scanner when isScanning becomes true
@@ -82,13 +86,23 @@ export default function CheckinPage() {
 
         scanner.render(
           (decodedText) => {
+            // Prevent multiple rapid scans
+            if (isProcessing) return;
+            
             try {
               const qrPayload = JSON.parse(decodedText);
               
               if (qrPayload.event_id === eventId) {
                 setLastScanned(qrPayload.address);
                 if (!scannedCodes.includes(qrPayload.address)) {
+                  // Stop scanning and mark as processing to prevent infinite loop
+                  setIsProcessing(true);
+                  stopScanning();
                   handleMarkAttendance(qrPayload.address);
+                } else {
+                  // Already scanned this address, stop scanning
+                  stopScanning();
+                  alert('This participant has already been marked as attended');
                 }
               } else {
                 alert('This QR code is for a different event');
@@ -107,7 +121,7 @@ export default function CheckinPage() {
 
       return () => clearTimeout(timer);
     }
-  }, [isScanning, eventId, scannedCodes, handleMarkAttendance]);
+  }, [isScanning, eventId, scannedCodes, handleMarkAttendance, isProcessing]);
 
   // Cleanup scanner on unmount
   useEffect(() => {

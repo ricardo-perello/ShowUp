@@ -297,22 +297,33 @@ export function useShowUpTransactions() {
     setError(null);
     
     try {
-      const tx = transactionExecutor.claimTransaction(eventId);
+      const tx = transactionExecutor.claimTransaction(eventId, account.address);
 
-      // Execute the transaction
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and wait for result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Claim transaction successful:', result);
+            setLoading(false);
+            resolve({
+              transactionId: result.digest,
+              message: 'Successfully claimed rewards!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Claim transaction failed:', error);
+            setError(error.message || 'Transaction failed');
+            setLoading(false);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Transaction submitted! Check your wallet for confirmation.',
-      };
     } catch (err) {
       handleError(err);
-      throw err;
-    } finally {
       setLoading(false);
+      throw err;
     }
   }, [account, signAndExecuteTransaction, handleError]);
 
@@ -324,22 +335,33 @@ export function useShowUpTransactions() {
     setError(null);
     
     try {
-      const tx = transactionExecutor.refundTransaction(eventId);
+      const tx = transactionExecutor.refundTransaction(eventId, account.address);
 
-      // Execute the transaction
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and wait for result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Refund transaction successful:', result);
+            setLoading(false);
+            resolve({
+              transactionId: result.digest,
+              message: 'Successfully refunded!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Refund transaction failed:', error);
+            setError(error.message || 'Transaction failed');
+            setLoading(false);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Transaction submitted! Check your wallet for confirmation.',
-      };
     } catch (err) {
       handleError(err);
-      throw err;
-    } finally {
       setLoading(false);
+      throw err;
     }
   }, [account, signAndExecuteTransaction, handleError]);
 
