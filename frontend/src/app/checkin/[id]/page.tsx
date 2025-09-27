@@ -1,102 +1,97 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
+import { useState, useRef, useEffect } from 'react';
+import { useCurrentAccount } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
-import { Calendar, ArrowLeft, QrCode, CheckCircle, X } from 'lucide-react';
+import { ArrowLeft, QrCode, CheckCircle, X, Users, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Event, QRPayload } from '@/lib/sui';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 
 export default function CheckinPage() {
   const account = useCurrentAccount();
-  const suiClient = useSuiClient();
   const params = useParams();
   const eventId = params.id as string;
   
-  const [event, setEvent] = useState<Event | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { markAttendance, loading, error } = useShowUpTransactions();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const [markingAttendance, setMarkingAttendance] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-
-  useEffect(() => {
-    const fetchEvent = async () => {
-      if (!account) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        // TODO: Implement actual event fetching from blockchain
-        const mockEvent: Event = {
-          id: eventId,
-          organizer: '0x123...abc',
-          stakeAmount: '1000000000',
-          endTime: '100',
-          participants: ['0x456...def', '0x789...ghi'],
-          attendees: ['0x456...def'],
-          vault: '2000000000'
-        };
-        
-        setEvent(mockEvent);
-      } catch (error) {
-        console.error('Error fetching event:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchEvent();
-  }, [account, eventId]);
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const isOrganizer = account && event && account.address === event.organizer;
+  // For now, assume user is organizer (in real app, check from event data)
+  const isOrganizer = true;
 
   const startScanning = () => {
-    if (scannerRef.current) return;
-
-    const scanner = new Html5QrcodeScanner(
-      "qr-reader",
-      { 
-        qrbox: { width: 250, height: 250 },
-        fps: 5,
-      },
-      false
-    );
-
-    scanner.render(
-      (decodedText) => {
-        try {
-          const qrPayload: QRPayload = JSON.parse(decodedText);
-          
-          if (qrPayload.event_id === eventId) {
-            setLastScanned(qrPayload.address);
-            if (!scannedCodes.includes(qrPayload.address)) {
-              setScannedCodes([...scannedCodes, qrPayload.address]);
-              markAttendance(qrPayload.address);
-            }
-          } else {
-            alert('This QR code is for a different event');
-          }
-        } catch (error) {
-          alert('Invalid QR code format');
-        }
-      },
-      (error) => {
-        // Ignore scanning errors
-      }
-    );
-
-    scannerRef.current = scanner;
     setIsScanning(true);
   };
+
+  // Use useEffect to initialize scanner when isScanning becomes true
+  useEffect(() => {
+    if (isScanning && !scannerRef.current) {
+      // Small delay to ensure DOM is updated
+      const timer = setTimeout(() => {
+        const qrReaderElement = document.getElementById("qr-reader");
+        if (!qrReaderElement) {
+          console.error("QR reader element not found");
+          setIsScanning(false);
+          return;
+        }
+
+        const scanner = new Html5QrcodeScanner(
+          "qr-reader",
+          { 
+            qrbox: { width: 250, height: 250 },
+            fps: 5,
+          },
+          false
+        );
+
+        scanner.render(
+          (decodedText) => {
+            try {
+              const qrPayload = JSON.parse(decodedText);
+              
+              if (qrPayload.event_id === eventId) {
+                setLastScanned(qrPayload.address);
+                if (!scannedCodes.includes(qrPayload.address)) {
+                  handleMarkAttendance(qrPayload.address);
+                }
+              } else {
+                alert('This QR code is for a different event');
+              }
+            } catch {
+              alert('Invalid QR code format');
+            }
+          },
+          () => {
+            // Ignore scanning errors
+          }
+        );
+
+        scannerRef.current = scanner;
+      }, 100); // Small delay to ensure DOM is updated
+
+      return () => clearTimeout(timer);
+    }
+  }, [isScanning, eventId, scannedCodes]);
+
+  // Cleanup scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear();
+        scannerRef.current = null;
+      }
+    };
+  }, []);
 
   const stopScanning = () => {
     if (scannerRef.current) {
@@ -106,17 +101,29 @@ export default function CheckinPage() {
     setIsScanning(false);
   };
 
-  const markAttendance = async (participantAddress: string) => {
+  const handleMarkAttendance = async (participantAddress: string) => {
+    if (markingAttendance === participantAddress) return; // Prevent double calls
+    
+    setMarkingAttendance(participantAddress);
     try {
-      // TODO: Implement mark_attended transaction
-      console.log('Marking attendance for:', participantAddress);
+      const result = await markAttendance(eventId, participantAddress);
       
-      // For now, just show success
+      // Attendance marked successfully!
+      console.log('Attendance marked:', result);
+      alert(`Attendance marked successfully! Transaction: ${result.transactionId}`);
+      
+      // Add to scanned codes
+      setScannedCodes(prev => [...prev, participantAddress]);
+      
+      // Show success
       setTimeout(() => {
         setLastScanned(null);
+        setMarkingAttendance(null);
       }, 2000);
     } catch (error) {
       console.error('Error marking attendance:', error);
+      alert(`Failed to mark attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setMarkingAttendance(null);
     }
   };
 
@@ -137,7 +144,7 @@ export default function CheckinPage() {
     );
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -148,12 +155,27 @@ export default function CheckinPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Event</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Link href="/events">
+            <Button>Back to Events</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!event) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Event Not Found</h1>
-          <p className="text-gray-600 mb-6">The event you're looking for doesn't exist</p>
+          <p className="text-gray-600 mb-6">The event you&apos;re looking for doesn&apos;t exist</p>
           <Link href="/events">
             <Button>Back to Events</Button>
           </Link>
@@ -245,7 +267,7 @@ export default function CheckinPage() {
             {scannedCodes.length === 0 ? (
               <div className="text-center py-8">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No attendees scanned yet</p>
+                <p className="text-gray-600">No attendees marked yet</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -257,6 +279,19 @@ export default function CheckinPage() {
                 ))}
               </div>
             )}
+
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <div className="text-sm text-gray-600">
+                <div className="flex justify-between">
+                  <span>Event ID:</span>
+                  <span className="font-medium font-mono text-xs">{eventId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Attendees:</span>
+                  <span className="font-medium">{scannedCodes.length}</span>
+                </div>
+              </div>
+            </div>
 
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 className="text-sm font-medium text-blue-900 mb-2">Instructions</h3>

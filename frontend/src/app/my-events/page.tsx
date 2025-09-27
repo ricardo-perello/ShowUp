@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
 import { Calendar, ArrowLeft, Users, Clock, Coins, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
-import { Event } from '@/lib/sui';
+import { Event, EventObject } from '@/lib/sui';
+import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 
 export default function MyEventsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const [events, setEvents] = useState<Event[]>([]);
+  const { getAllEvents, getAllEventsGlobal, loading: transactionLoading, error } = useShowUpTransactions();
+  const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -21,40 +23,29 @@ export default function MyEventsPage() {
         return;
       }
 
+      setIsLoading(true);
+      
       try {
-        // TODO: Implement actual event fetching from blockchain
-        // For now, show mock data
-        const mockEvents: Event[] = [
-          {
-            id: '0x1',
-            organizer: account.address,
-            stakeAmount: '1000000000',
-            endTime: '100',
-            participants: ['0x456...def', '0x789...ghi'],
-            attendees: ['0x456...def'],
-            vault: '2000000000'
-          },
-          {
-            id: '0x2',
-            organizer: '0x999...xyz',
-            stakeAmount: '5000000000',
-            endTime: '150',
-            participants: ['0x111...aaa', '0x222...bbb', account.address],
-            attendees: ['0x111...aaa', '0x222...bbb', account.address],
-            vault: '15000000000'
-          }
-        ];
+        // Get all events and filter for ones where user is organizer
+        const allEvents = await getAllEventsGlobal();
         
-        setEvents(mockEvents);
+        // Filter events where user is the organizer
+        const myEvents = allEvents.filter(event => 
+          event.organizer.toLowerCase() === account.address.toLowerCase()
+        );
+        
+        setEvents(myEvents);
       } catch (error) {
         console.error('Error fetching my events:', error);
+        // Fallback to empty array on error
+        setEvents([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchMyEvents();
-  }, [account]);
+  }, [account, getAllEventsGlobal]);
 
   const formatSUI = (mist: string) => {
     return (parseInt(mist) / 1_000_000_000).toFixed(3);
@@ -64,17 +55,7 @@ export default function MyEventsPage() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const isOrganizer = (event: Event) => {
-    return account && event.organizer === account.address;
-  };
 
-  const isParticipant = (event: Event) => {
-    return account && event.participants.includes(account.address);
-  };
-
-  const hasAttended = (event: Event) => {
-    return account && event.attendees.includes(account.address);
-  };
 
   if (!account) {
     return (
@@ -140,20 +121,17 @@ export default function MyEventsPage() {
                   <div>
                     <div className="flex items-center mb-2">
                       <h3 className="text-xl font-semibold text-gray-900 mr-3">
-                        Event {formatAddress(event.id)}
+                        {event.name || `Event ${formatAddress(event.id)}`}
                       </h3>
-                      {isOrganizer(event) ? (
-                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                          Organizer
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                          Participant
-                        </span>
-                      )}
+                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        Organizer
+                      </span>
                     </div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {event.description}
+                    </p>
                     <p className="text-sm text-gray-600">
-                      {isOrganizer(event) ? 'You organized this event' : `Organizer: ${formatAddress(event.organizer)}`}
+                      You organized this event
                     </p>
                   </div>
                   <div className="text-right">
@@ -168,7 +146,7 @@ export default function MyEventsPage() {
                   <div className="flex items-center text-gray-600">
                     <Users className="h-5 w-5 mr-2" />
                     <span className="text-sm">
-                      {event.participants.length} participants
+                      Capacity: {event.capacity === '0' ? 'Unlimited' : event.capacity}
                     </span>
                   </div>
                   <div className="flex items-center text-gray-600">
@@ -186,16 +164,8 @@ export default function MyEventsPage() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center text-sm">
-                    {isParticipant(event) && hasAttended(event) && (
-                      <div className="flex items-center text-green-600 mr-4">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        <span>Attended</span>
-                      </div>
-                    )}
-                    <span className="text-gray-600">
-                      {event.attendees.length} attended
-                    </span>
+                  <div className="text-sm text-gray-600">
+                    Location: {event.location}
                   </div>
                   <Link href={`/events/${event.id}`}>
                     <Button variant="outline">

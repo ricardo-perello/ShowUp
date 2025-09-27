@@ -69,6 +69,154 @@ button {
   font-family: inherit;
 }
 
+/* Input field styling - Force visible text */
+input, textarea, select {
+  color: #1f2937 !important; /* Always dark text */
+  background-color: #ffffff !important; /* Always white background */
+  border: 1px solid #d1d5db !important; /* Gray border */
+}
+
+/* Override any Tailwind text color classes on inputs */
+input.text-white,
+input.text-gray-900,
+input.text-gray-800,
+input.text-gray-700,
+input.text-gray-600,
+input.text-gray-500,
+input.text-gray-400,
+input.text-gray-300,
+input.text-gray-200,
+input.text-gray-100,
+textarea.text-white,
+textarea.text-gray-900,
+textarea.text-gray-800,
+textarea.text-gray-700,
+textarea.text-gray-600,
+textarea.text-gray-500,
+textarea.text-gray-400,
+textarea.text-gray-300,
+textarea.text-gray-200,
+textarea.text-gray-100 {
+  color: #1f2937 !important; /* Force dark text */
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9ca3af !important; /* Light gray placeholder */
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important; /* Blue border on focus */
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important; /* Blue shadow */
+  color: #1f2937 !important; /* Ensure text stays dark on focus */
+}
+
+/* Override any dark mode input styling */
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+input[type="number"], 
+input[type="tel"], 
+input[type="url"], 
+input[type="search"],
+textarea,
+select {
+  color: #1f2937 !important; /* Dark text */
+  background-color: #ffffff !important; /* White background */
+  border: 1px solid #d1d5db !important; /* Gray border */
+}
+
+/* Ensure all input states have visible text */
+input:not(:placeholder-shown),
+textarea:not(:placeholder-shown) {
+  color: #1f2937 !important; /* Dark text when not placeholder */
+}
+
+input:focus:not(:placeholder-shown),
+textarea:focus:not(:placeholder-shown) {
+  color: #1f2937 !important; /* Dark text on focus */
+}
+
+/* Nuclear option - override everything for inputs */
+input[type="text"]:not([readonly]):not([disabled]),
+input[type="email"]:not([readonly]):not([disabled]),
+input[type="password"]:not([readonly]):not([disabled]),
+input[type="number"]:not([readonly]):not([disabled]),
+input[type="tel"]:not([readonly]):not([disabled]),
+input[type="url"]:not([readonly]):not([disabled]),
+input[type="search"]:not([readonly]):not([disabled]),
+textarea:not([readonly]):not([disabled]),
+select:not([readonly]):not([disabled]) {
+  color: #1f2937 !important; /* Dark text */
+  background-color: #ffffff !important; /* White background */
+  border: 1px solid #d1d5db !important; /* Gray border */
+}
+
+/* Override any inherited text colors */
+input, textarea, select {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+}
+
+/* Force text color on all input elements regardless of any classes */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* Override any dark mode classes */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark input[type="tel"],
+.dark input[type="url"],
+.dark input[type="search"],
+.dark textarea,
+.dark select {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* Ensure all text elements have proper contrast */
+p, div, span, h1, h2, h3, h4, h5, h6, li, td, th {
+  color: inherit;
+}
+
+/* Fix any white text on light backgrounds */
+.bg-white p,
+.bg-white div,
+.bg-white span,
+.bg-gray-50 p,
+.bg-gray-50 div,
+.bg-gray-50 span {
+  color: #1f2937 !important; /* Dark gray text */
+}
+
+/* Ensure monospace text is visible */
+.font-mono {
+  color: #1f2937 !important;
+}
+
+/* Fix any text in light colored containers */
+.bg-blue-50 p,
+.bg-green-50 p,
+.bg-yellow-50 p,
+.bg-red-50 p,
+.bg-purple-50 p {
+  color: inherit; /* Let the specific text color classes work */
+}
+
 /* Sui ConnectButton styling */
 [data-sui-connect-button] {
   background: var(--primary) !important;

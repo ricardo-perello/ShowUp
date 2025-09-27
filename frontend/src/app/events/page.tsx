@@ -6,55 +6,34 @@ import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
 import { Calendar, ArrowLeft, Users, Clock, Coins } from 'lucide-react';
 import Link from 'next/link';
-import { Event } from '@/lib/sui';
+import { Event, EventObject } from '@/lib/sui';
+import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 
 export default function EventsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const [events, setEvents] = useState<Event[]>([]);
+  const { getAllEventsGlobal, loading: transactionLoading, error } = useShowUpTransactions();
+  const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchEvents = async () => {
-      if (!account) {
-        setIsLoading(false);
-        return;
-      }
-
+      setIsLoading(true);
+      
       try {
-        // TODO: Implement actual event fetching from blockchain
-        // For now, show mock data
-        const mockEvents: Event[] = [
-          {
-            id: '0x1',
-            organizer: '0x123...abc',
-            stakeAmount: '1000000000', // 1 SUI in MIST
-            endTime: '100',
-            participants: ['0x456...def', '0x789...ghi'],
-            attendees: [],
-            vault: '2000000000'
-          },
-          {
-            id: '0x2',
-            organizer: '0x999...xyz',
-            stakeAmount: '5000000000', // 5 SUI in MIST
-            endTime: '150',
-            participants: ['0x111...aaa', '0x222...bbb', '0x333...ccc'],
-            attendees: ['0x111...aaa', '0x222...bbb'],
-            vault: '15000000000'
-          }
-        ];
-        
-        setEvents(mockEvents);
+        const fetchedEvents = await getAllEventsGlobal();
+        setEvents(fetchedEvents);
       } catch (error) {
         console.error('Error fetching events:', error);
+        // Fallback to empty array on error
+        setEvents([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchEvents();
-  }, [account]);
+  }, [getAllEventsGlobal]);
 
   const formatSUI = (mist: string) => {
     return (parseInt(mist) / 1_000_000_000).toFixed(3);
@@ -122,8 +101,11 @@ export default function EventsPage() {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      Event {formatAddress(event.id)}
+                      {event.name || `Event ${formatAddress(event.id)}`}
                     </h3>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {event.description}
+                    </p>
                     <p className="text-sm text-gray-600">
                       Organizer: {formatAddress(event.organizer)}
                     </p>
@@ -140,7 +122,7 @@ export default function EventsPage() {
                   <div className="flex items-center text-gray-600">
                     <Users className="h-5 w-5 mr-2" />
                     <span className="text-sm">
-                      {event.participants.length} participants
+                      Capacity: {event.capacity === '0' ? 'Unlimited' : event.capacity}
                     </span>
                   </div>
                   <div className="flex items-center text-gray-600">
@@ -159,7 +141,7 @@ export default function EventsPage() {
 
                 <div className="flex justify-between items-center">
                   <div className="text-sm text-gray-600">
-                    {event.attendees.length} attended
+                    Location: {event.location}
                   </div>
                   <Link href={`/events/${event.id}`}>
                     <Button variant="outline">

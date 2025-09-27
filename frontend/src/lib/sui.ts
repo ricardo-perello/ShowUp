@@ -9,17 +9,23 @@ export const { networkConfig } = createNetworkConfig({
 });
 
 // Contract configuration
-export const CONTRACT_ADDRESS = '0xcfa197d066b4982c14fde0ba7379ad3bb018f820da4cd161b966cac1019a1f66';
-export const PACKAGE_ID = '0xcfa197d066b4982c14fde0ba7379ad3bb018f820da4cd161b966cac1019a1f66';
+export const CONTRACT_ADDRESS = '0xef86f8e45170242ca0307be6f8b13dd55ac83c891b6c5d0b62a1bce9665a2201';
+export const PACKAGE_ID = '0xef86f8e45170242ca0307be6f8b13dd55ac83c891b6c5d0b62a1bce9665a2201';
 
 // Event object type
 export interface Event {
   id: string;
-  organizer: string;
-  stakeAmount: string;
+  name: string;
+  description: string;
+  location: string;
+  startTime: string;
   endTime: string;
+  stakeAmount: string;
+  capacity: string;
+  organizer: string;
   participants: string[];
   attendees: string[];
+  claimed: string[];
   vault: string;
 }
 
@@ -28,3 +34,55 @@ export interface QRPayload {
   event_id: string;
   address: string;
 }
+
+// Event object type from blockchain
+export interface EventObject {
+  id: string;
+  name: string;
+  description: string;
+  location: string;
+  startTime: string;
+  endTime: string;
+  stakeAmount: string;
+  capacity: string;
+  organizer: string;
+  participants: string[];
+  attendees: string[];
+  claimed: string[];
+  vault: string;
+}
+
+// Utility functions for querying events
+export const getEventType = (packageId: string) => 
+  `${packageId}::showup::Event`;
+
+export const parseEventFromObject = (object: any): EventObject => {
+  console.log('🔍 Parsing event object:', object);
+  
+  const fields = object.content?.fields;
+  if (!fields) {
+    console.error('❌ Invalid event object: missing fields', object);
+    throw new Error('Invalid event object: missing fields');
+  }
+
+  console.log('📋 Event fields:', fields);
+
+  const parsedEvent = {
+    id: object.objectId,
+    name: fields.name || '',
+    description: fields.description || '',
+    location: fields.location || '',
+    startTime: fields.start_time || '0',
+    endTime: fields.end_time || '0',
+    stakeAmount: fields.stake_amount || '0',
+    capacity: fields.capacity || '0',
+    organizer: fields.organizer || '',
+    participants: [], // Tables need special handling
+    attendees: [],    // Tables need special handling
+    claimed: [],      // Tables need special handling
+    vault: fields.vault || '0',
+  };
+
+  console.log('✅ Parsed event:', parsedEvent);
+  return parsedEvent;
+};

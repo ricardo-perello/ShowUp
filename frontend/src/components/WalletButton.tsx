@@ -3,6 +3,7 @@
 import { useCurrentAccount, useWallets, useConnectWallet, useDisconnectWallet } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
+import { ClientOnly } from './ClientOnly';
 
 export function WalletButton() {
   const account = useCurrentAccount();
@@ -31,37 +32,48 @@ export function WalletButton() {
     disconnect();
   };
 
-  if (account) {
-    return (
-      <div className="flex items-center gap-4">
-        <div className="text-sm text-gray-600">
-          Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
-        </div>
-        <Button 
-          onClick={handleDisconnect}
-          variant="outline"
-          size="sm"
-        >
-          Disconnect
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col items-center gap-2">
-      <Button 
-        onClick={handleConnect}
-        disabled={isConnecting || wallets.length === 0}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-      >
-        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-      </Button>
-      {wallets.length === 0 && (
-        <p className="text-xs text-gray-500 text-center">
-          Install Mysten or Ethos wallet to continue
-        </p>
+    <ClientOnly 
+      fallback={
+        <div className="flex flex-col items-center gap-2">
+          <Button 
+            disabled
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+          >
+            Loading...
+          </Button>
+        </div>
+      }
+    >
+      {account ? (
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+          </div>
+          <Button 
+            onClick={handleDisconnect}
+            variant="outline"
+            size="sm"
+          >
+            Disconnect
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <Button 
+            onClick={handleConnect}
+            disabled={isConnecting || wallets.length === 0}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+          >
+            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+          </Button>
+          {wallets.length === 0 && (
+            <p className="text-xs text-gray-500 text-center">
+              Install Mysten or Ethos wallet to continue
+            </p>
+          )}
+        </div>
       )}
-    </div>
+    </ClientOnly>
   );
 }

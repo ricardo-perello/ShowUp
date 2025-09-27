@@ -17,7 +17,7 @@ export function SuiProvider({ children }: SuiProviderProps) {
       <SuiClientProvider networks={networkConfig} defaultNetwork="devnet">
         <WalletProvider
           autoConnect
-          enableUnsafeBurner={true}
+          enableUnsafeBurner={false}
         >
           {children}
         </WalletProvider>

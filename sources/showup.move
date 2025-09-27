@@ -24,7 +24,7 @@ module showup::showup {
     /// Event object definition
     /// COMPLETELY IMMUTABLE after creation - NO ONE can modify event details
     /// Only way to "change" an event is to create a new one
-    public struct Event has key {
+    public struct Event has key, store {
         id: sui::object::UID,
         organizer: address,
         name: String,                    // Immutable - cannot be changed
@@ -49,8 +49,8 @@ module showup::showup {
         stake_amount: u64,
         capacity: u64,
         ctx: &mut sui::tx_context::TxContext
-    ): Event {
-        Event {
+    ) {
+        let event = Event {
             id: sui::object::new(ctx),
             organizer: sui::tx_context::sender(ctx),
             name,
@@ -64,7 +64,10 @@ module showup::showup {
             attendees: table::new<address, bool>(ctx),
             claimed: table::new<address, bool>(ctx),
             vault: balance::zero<SUI>(),
-        }
+        };
+        
+        // Transfer the event to the organizer
+        sui::transfer::public_transfer(event, sui::tx_context::sender(ctx));
     }
 
     public fun join_event(
