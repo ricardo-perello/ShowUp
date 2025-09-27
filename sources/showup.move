@@ -20,12 +20,15 @@ module showup::showup {
     const E_EVENT_ALREADY_STARTED: u64 = 6;
     const E_EVENT_NOT_CANCELLED: u64 = 7;
     const E_NOT_PARTICIPANT: u64 = 8;
+    const E_EVENT_REQUIRES_APPROVAL: u64 = 9;
+    const E_NOT_IN_REQUESTS: u64 = 10;
 
     /// Event object definition
     /// COMPLETELY IMMUTABLE after creation - NO ONE can modify event details
     /// Only way to "change" an event is to create a new one
     public struct Event has key {
         id: sui::object::UID,
+        must_request_to_join: bool,      //Immutable - event is public or private
         organizer: address,
         name: String,                    // Immutable - cannot be changed
         description: String,             // Immutable - cannot be changed
@@ -35,6 +38,7 @@ module showup::showup {
         stake_amount: u64,               // Immutable - cannot be changed
         capacity: u64,                   // Immutable - cannot be changed
         participants: Table<address, bool>,   // Mutable - participants can join
+        pending_requests: Table<address, bool>, // Mutable - pending requests for private events
         attendees: Table<address, bool>,      // Mutable - organizer can mark attendance
         claimed: Table<address, bool>,        // Mutable - attendees can claim rewards
         vault: Balance<SUI>,            // Mutable - grows as participants join
@@ -48,10 +52,12 @@ module showup::showup {
         end_time: u64,
         stake_amount: u64,
         capacity: u64,
+        must_request_to_join: bool,
         ctx: &mut sui::tx_context::TxContext
     ): Event {
         Event {
             id: sui::object::new(ctx),
+            must_request_to_join,
             organizer: sui::tx_context::sender(ctx),
             name,
             description,
@@ -61,6 +67,7 @@ module showup::showup {
             stake_amount,
             capacity,
             participants: table::new<address, bool>(ctx),
+            pending_requests: table::new<address, bool>(ctx),
             attendees: table::new<address, bool>(ctx),
             claimed: table::new<address, bool>(ctx),
             vault: balance::zero<SUI>(),
@@ -72,6 +79,9 @@ module showup::showup {
         _coins: Coin<SUI>,
         ctx: &mut sui::tx_context::TxContext
     ) {
+        // Only allow direct joining for public events
+        assert!(!event.must_request_to_join, E_EVENT_REQUIRES_APPROVAL);
+
         let sender = sui::tx_context::sender(ctx);
         let now = sui::tx_context::epoch(ctx);
 
@@ -96,16 +106,107 @@ module showup::showup {
         table::add(&mut event.participants, sender, true);
     }
 
-    public fun mark_attended(
+    public fun request_to_join(
         event: &mut Event,
-        participant: address,
+        _coins: Coin<SUI>,
+        ctx: &mut sui::tx_context::TxContext
+    ) {
+        // Only allow requests for private events
+        assert!(event.must_request_to_join, E_EVENT_REQUIRES_APPROVAL);
+
+        let sender = sui::tx_context::sender(ctx);
+        let now = sui::tx_context::epoch(ctx);
+
+        // Must request before event starts
+        assert!(now < event.start_time, E_EVENT_ALREADY_STARTED);
+
+        // Verify correct stake
+        let amount = coin::value(&_coins);
+        assert!(amount == event.stake_amount, E_INSUFFICIENT_STAKE);
+
+        // Check capacity (0 means unlimited)
+        if (event.capacity > 0) {
+            let current_participants = table::length(&event.participants);
+            let pending_requests = table::length(&event.pending_requests);
+            assert!(current_participants + pending_requests < event.capacity, E_CAPACITY_EXCEEDED);
+        };
+
+        // Deposit coins into vault
+        let sui_balance = coin::into_balance(_coins);
+        balance::join(&mut event.vault, sui_balance);
+
+        // Add to pending requests (aborts if already requested)
+        table::add(&mut event.pending_requests, sender, true);
+    }
+
+    public fun accept_requests(
+        event: &mut Event,
+        participants: vector<address>,
         ctx: &sui::tx_context::TxContext
     ) {
         assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
-        // Only participants can be marked as attended (avoid accidental scans)
-        assert!(table::contains(&event.participants, participant), E_NOT_PARTICIPANT);
-        // Add attendee (aborts if already marked)
-        table::add(&mut event.attendees, participant, true);
+        
+        // Check capacity before accepting any requests
+        if (event.capacity > 0) {
+            let current_participants = table::length(&event.participants);
+            let requests_to_accept = vector::length(&participants);
+            assert!(current_participants + requests_to_accept <= event.capacity, E_CAPACITY_EXCEEDED);
+        };
+        
+        let mut i = 0;
+        let len = vector::length(&participants);
+        while (i < len) {
+            let participant = *vector::borrow(&participants, i);
+            // Only accept if they have a pending request
+            assert!(table::contains(&event.pending_requests, participant), E_NOT_IN_REQUESTS);
+            // Remove from pending requests
+            table::remove(&mut event.pending_requests, participant);
+            // Add to participants (aborts if already joined)
+            table::add(&mut event.participants, participant, true);
+            i = i + 1;
+        };
+    }
+
+    public fun reject_requests(
+        event: &mut Event,
+        participants: vector<address>,
+        ctx: &mut sui::tx_context::TxContext
+    ) {
+        assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
+        
+        let mut i = 0;
+        let len = vector::length(&participants);
+        while (i < len) {
+            let participant = *vector::borrow(&participants, i);
+            // Only reject if they have a pending request
+            assert!(table::contains(&event.pending_requests, participant), E_NOT_IN_REQUESTS);
+            // Remove from pending requests
+            table::remove(&mut event.pending_requests, participant);
+            // Return stake amount to participant
+            let refund_balance = balance::split(&mut event.vault, event.stake_amount);
+            let refund_coin = coin::from_balance(refund_balance, ctx);
+            sui::transfer::public_transfer(refund_coin, participant);
+            i = i + 1;
+        };
+    }
+
+    public fun mark_attended(
+        event: &mut Event,
+        participants: vector<address>,
+        ctx: &sui::tx_context::TxContext
+    ) {
+        assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
+        
+        let mut i = 0;
+        let len = vector::length(&participants);
+        while (i < len) {
+            let participant = *vector::borrow(&participants, i);
+            // Only participants can be marked as attended (avoid accidental scans)
+            assert!(table::contains(&event.participants, participant), E_NOT_PARTICIPANT);
+            // Add attendee (aborts if already marked)
+            table::add(&mut event.attendees, participant, true);
+            i = i + 1;
+        };
     }
 
     public fun claim(
@@ -244,12 +345,29 @@ module showup::showup {
         table::contains(&event.claimed, claimant)
     }
 
+    public fun must_request_to_join(event: &Event): bool {
+        event.must_request_to_join
+    }
+
+    public fun get_pending_requests_count(event: &Event): u64 {
+        table::length(&event.pending_requests)
+    }
+
+    public fun has_pending_request(event: &Event, participant: address): bool {
+        table::contains(&event.pending_requests, participant)
+    }
+
+    public fun total_requested_spots(event: &Event): u64 {
+        table::length(&event.participants) + table::length(&event.pending_requests)
+    }
+
 
     // Test-only function to destroy event for cleanup
     #[test_only]
     public fun destroy_event(event: Event) {
         let Event {
             id,
+            must_request_to_join: _,
             organizer,
             name: _,
             description: _,
@@ -259,6 +377,7 @@ module showup::showup {
             stake_amount: _,
             capacity: _,
             participants,
+            pending_requests,
             attendees,
             claimed,
             vault,
@@ -269,6 +388,7 @@ module showup::showup {
         // For test cleanup, we'll transfer the tables to a dummy address
         // In production, you might want to ensure tables are empty before destroying
         sui::transfer::public_transfer(participants, @0x0);
+        sui::transfer::public_transfer(pending_requests, @0x0);
         sui::transfer::public_transfer(attendees, @0x0);
         sui::transfer::public_transfer(claimed, @0x0);
         // Send vault balance to organizer
