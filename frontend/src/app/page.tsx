@@ -63,11 +63,6 @@ export default function Home() {
                         My Events
                       </Button>
                     </Link>
-                    <Link href="/test">
-                      <Button variant="outline" className="w-full">
-                        Test Integration
-                      </Button>
-                    </Link>
                   </div>
                 </div>
               </div>

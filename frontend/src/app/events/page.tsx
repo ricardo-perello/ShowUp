@@ -18,7 +18,15 @@ export default function EventsPage() {
   const [participantStatus, setParticipantStatus] = useState<Record<string, boolean>>({});
 
   const checkParticipantStatus = useCallback(async (eventId: string) => {
-    if (!account?.address || !suiClient) return false;
+    if (!account?.address) {
+      console.log('🔍 No account address available');
+      return false;
+    }
+    
+    if (!suiClient) {
+      console.log('🔍 SuiClient not available yet');
+      return false;
+    }
     
     try {
       const isParticipant = await isUserParticipant(suiClient, eventId, account.address);
@@ -53,8 +61,11 @@ export default function EventsPage() {
   }, [getAllEventsGlobal, account?.address, suiClient, checkParticipantStatus]);
 
   useEffect(() => {
-    fetchEvents();
-  }, [getAllEventsGlobal, fetchEvents]);
+    // Only fetch events when we have both account and suiClient
+    if (account && suiClient) {
+      fetchEvents();
+    }
+  }, [account, suiClient, fetchEvents]);
 
   const formatSUI = (mist: string) => {
     return (parseInt(mist) / 1_000_000_000).toFixed(3);

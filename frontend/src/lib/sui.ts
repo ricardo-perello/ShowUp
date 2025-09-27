@@ -164,6 +164,13 @@ export const isUserParticipant = async (
 ): Promise<boolean> => {
   try {
     console.log('🔍 Checking if user is participant:', userAddress, 'in event:', eventId);
+    console.log('🔍 SuiClient type:', typeof suiClient, 'value:', suiClient);
+    
+    // Check if suiClient is available
+    if (!suiClient || typeof suiClient !== 'object') {
+      console.error('❌ SuiClient is not available or invalid:', suiClient);
+      return false;
+    }
     
     // Query the event object to get the participants VecMap
     const eventData = await suiClient.getObject({
@@ -203,15 +210,17 @@ export const isUserParticipant = async (
     
     console.log('🔍 User not found in participants VecMap');
 
+    // Double-check suiClient before fallback query
+    if (!suiClient || typeof suiClient !== 'object') {
+      console.error('❌ SuiClient is not available for fallback query');
+      return false;
+    }
+
     // Fallback: check transaction history
     const recentTxs = await suiClient.queryTransactionBlocks({
       filter: {
         FromAddress: userAddress,
-        MoveFunction: {
-          package: PACKAGE_ID,
-          module: 'showup',
-          function: 'join_event',
-        },
+        MoveFunction: `${PACKAGE_ID}::showup::join_event`,
       },
       options: {
         showEffects: true,
