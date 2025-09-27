@@ -62,11 +62,30 @@ export default function EventDetailsPage() {
           console.log('📋 Must request to join:', eventFields.must_request_to_join);
           console.log('📋 Registration end time:', eventFields.registration_end_time);
           
-          // Parse pending requests (tables need special handling)
-          const pendingRequestsArray = Array.isArray(eventFields.pending_requests) ? eventFields.pending_requests : [];
-          setPendingRequests(pendingRequestsArray as string[]);
+          // Parse VecMaps to extract participant data
+          const participantsVecMap = eventFields.participants as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+          const attendeesVecMap = eventFields.attendees as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+          const claimedVecMap = eventFields.claimed as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+          const pendingRequestsVecMap = eventFields.pending_requests as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
           
-          setEvent(eventFields);
+          // Extract participant addresses from VecMaps
+          const participantsArray = participantsVecMap?.fields?.contents?.map(entry => entry.fields.key) || [];
+          const attendeesArray = attendeesVecMap?.fields?.contents?.map(entry => entry.fields.key) || [];
+          const claimedArray = claimedVecMap?.fields?.contents?.map(entry => entry.fields.key) || [];
+          const pendingRequestsArray = pendingRequestsVecMap?.fields?.contents?.map(entry => entry.fields.key) || [];
+          
+          setPendingRequests(pendingRequestsArray);
+          
+          // Create a properly parsed event object
+          const parsedEvent = {
+            ...eventFields,
+            participants: participantsArray,
+            attendees: attendeesArray,
+            claimed: claimedArray,
+            pending_requests: pendingRequestsArray,
+          };
+          
+          setEvent(parsedEvent);
         }
       } catch (err) {
         console.error('Error fetching event:', err);

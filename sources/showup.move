@@ -8,9 +8,9 @@ module showup::showup {
     use sui::coin::{Coin, Self};
     use sui::sui::SUI;
     use std::string::String;
-    use sui::table::{Self, Table};
+    use sui::vec_map::{Self, VecMap};
     use sui::event;
-    use sui::clock::{Self, Clock};
+    use sui::clock::Clock;
 
     // Error codes
     const E_INSUFFICIENT_STAKE: u64 = 0;
@@ -115,10 +115,10 @@ module showup::showup {
         end_time: u64,                   // Mutable - only gets set to 0 when cancelled
         stake_amount: u64,               // Immutable - cannot be changed
         capacity: u64,                   // Immutable - cannot be changed
-        participants: Table<address, bool>,   // Mutable - participants can join
-        pending_requests: Table<address, bool>, // Mutable - pending requests for private events
-        attendees: Table<address, bool>,      // Mutable - organizer can mark attendance
-        claimed: Table<address, bool>,        // Mutable - attendees can claim rewards
+        participants: VecMap<address, bool>,   // Mutable - participants can join
+        pending_requests: VecMap<address, bool>, // Mutable - pending requests for private events
+        attendees: VecMap<address, bool>,      // Mutable - organizer can mark attendance
+        claimed: VecMap<address, bool>,        // Mutable - attendees can claim rewards
         participant_vault: Balance<SUI>,     // Mutable - vault for confirmed participants
         pending_vault: Balance<SUI>,         // Mutable - vault for pending requests
         total_pot: u64,                      // Mutable - total pot for fair splitting (negative = uninitialized)
@@ -150,10 +150,10 @@ module showup::showup {
             end_time,
             stake_amount,
             capacity,
-            participants: table::new<address, bool>(ctx),
-            pending_requests: table::new<address, bool>(ctx),
-            attendees: table::new<address, bool>(ctx),
-            claimed: table::new<address, bool>(ctx),
+            participants: vec_map::empty<address, bool>(),
+            pending_requests: vec_map::empty<address, bool>(),
+            attendees: vec_map::empty<address, bool>(),
+            claimed: vec_map::empty<address, bool>(),
             participant_vault: balance::zero<SUI>(),
             pending_vault: balance::zero<SUI>(),
             total_pot: 0xFFFFFFFFFFFFFFFF, // Negative value to indicate uninitialized
@@ -201,10 +201,10 @@ module showup::showup {
             end_time,
             stake_amount,
             capacity,
-            participants: table::new<address, bool>(ctx),
-            pending_requests: table::new<address, bool>(ctx),
-            attendees: table::new<address, bool>(ctx),
-            claimed: table::new<address, bool>(ctx),
+            participants: vec_map::empty<address, bool>(),
+            pending_requests: vec_map::empty<address, bool>(),
+            attendees: vec_map::empty<address, bool>(),
+            claimed: vec_map::empty<address, bool>(),
             participant_vault: balance::zero<SUI>(),
             pending_vault: balance::zero<SUI>(),
             total_pot: 0xFFFFFFFFFFFFFFFF, // Negative value to indicate uninitialized
@@ -227,7 +227,7 @@ module showup::showup {
         assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
 
         // Must not already be a participant
-        assert!(!table::contains(&event.participants, sender), E_ALREADY_PARTICIPANT);
+        assert!(!vec_map::contains(&event.participants, &sender), E_ALREADY_PARTICIPANT);
 
         // Must join after registration starts
         assert!(now >= event.registration_start_time, E_REGISTRATION_NOT_STARTED);
@@ -241,7 +241,7 @@ module showup::showup {
 
         // Check capacity (0 means unlimited)
         if (event.capacity > 0) {
-            let current_participants = table::length(&event.participants);
+            let current_participants = vec_map::length(&event.participants);
             assert!(current_participants < event.capacity, E_CAPACITY_EXCEEDED);
         };
 
@@ -250,7 +250,7 @@ module showup::showup {
         balance::join(&mut event.participant_vault, sui_balance);
 
         // Add participant (guaranteed not present due to assert above)
-        table::add(&mut event.participants, sender, true);
+        vec_map::insert(&mut event.participants, sender, true);
         
         // Emit event when someone joins
         event::emit(EventJoined {
@@ -276,10 +276,10 @@ module showup::showup {
         assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
 
         // Must not already be a participant
-        assert!(!table::contains(&event.participants, sender), E_ALREADY_PARTICIPANT);
+        assert!(!vec_map::contains(&event.participants, &sender), E_ALREADY_PARTICIPANT);
 
         // Must not already have a pending request
-        assert!(!table::contains(&event.pending_requests, sender), E_ALREADY_REQUESTED);
+        assert!(!vec_map::contains(&event.pending_requests, &sender), E_ALREADY_REQUESTED);
 
         // Must request after registration starts
         assert!(now >= event.registration_start_time, E_REGISTRATION_NOT_STARTED);
@@ -293,8 +293,8 @@ module showup::showup {
 
         // Check capacity (0 means unlimited)
         if (event.capacity > 0) {
-            let current_participants = table::length(&event.participants);
-            let pending_requests = table::length(&event.pending_requests);
+            let current_participants = vec_map::length(&event.participants);
+            let pending_requests = vec_map::length(&event.pending_requests);
             assert!(current_participants + pending_requests < event.capacity, E_CAPACITY_EXCEEDED);
         };
 
@@ -303,7 +303,7 @@ module showup::showup {
         balance::join(&mut event.pending_vault, sui_balance);
 
         // Add to pending requests (guaranteed not present due to assert above)
-        table::add(&mut event.pending_requests, sender, true);
+        vec_map::insert(&mut event.pending_requests, sender, true);
         
         // Emit event when someone requests to join
         event::emit(EventRequested {
@@ -322,7 +322,7 @@ module showup::showup {
         
         // Check capacity before accepting any requests
         if (event.capacity > 0) {
-            let current_participants = table::length(&event.participants);
+            let current_participants = vec_map::length(&event.participants);
             let requests_to_accept = vector::length(&participants);
             assert!(current_participants + requests_to_accept <= event.capacity, E_CAPACITY_EXCEEDED);
         };
@@ -332,14 +332,14 @@ module showup::showup {
         while (i < len) {
             let participant = *vector::borrow(&participants, i);
             // Only accept if they have a pending request
-            assert!(table::contains(&event.pending_requests, participant), E_NOT_IN_REQUESTS);
+            assert!(vec_map::contains(&event.pending_requests, &participant), E_NOT_IN_REQUESTS);
             // Transfer stake from pending vault to participant vault
             let stake_balance = balance::split(&mut event.pending_vault, event.stake_amount);
             balance::join(&mut event.participant_vault, stake_balance);
             // Remove from pending requests
-            table::remove(&mut event.pending_requests, participant);
+            vec_map::remove(&mut event.pending_requests, &participant);
             // Add to participants (aborts if already joined)
-            table::add(&mut event.participants, participant, true);
+            vec_map::insert(&mut event.participants, participant, true);
             
             // Emit event for each accepted request
             event::emit(EventRequestAccepted {
@@ -364,9 +364,9 @@ module showup::showup {
         while (i < len) {
             let participant = *vector::borrow(&participants, i);
             // Only reject if they have a pending request
-            assert!(table::contains(&event.pending_requests, participant), E_NOT_IN_REQUESTS);
+            assert!(vec_map::contains(&event.pending_requests, &participant), E_NOT_IN_REQUESTS);
             // Remove from pending requests
-            table::remove(&mut event.pending_requests, participant);
+            vec_map::remove(&mut event.pending_requests, &participant);
             // Return stake amount to participant from pending vault
             let refund_balance = balance::split(&mut event.pending_vault, event.stake_amount);
             let refund_coin = coin::from_balance(refund_balance, ctx);
@@ -392,16 +392,16 @@ module showup::showup {
         let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
         
         // Must be a participant
-        assert!(table::contains(&event.participants, sender), E_NOT_PARTICIPANT);
+        assert!(vec_map::contains(&event.participants, &sender), E_NOT_PARTICIPANT);
         
         // Cannot withdraw if already claimed
-        assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
+        assert!(!vec_map::contains(&event.claimed, &sender), E_ALREADY_CLAIMED);
         
         // Cannot withdraw if event has ended (after end_time)
         assert!(now < event.end_time, E_EVENT_NOT_ENDED);
         
         // Remove from participants (no refund - stake is forfeited)
-        table::remove(&mut event.participants, sender);
+        vec_map::remove(&mut event.participants, &sender);
         
         // Emit event when someone withdraws
         event::emit(EventWithdrawn {
@@ -423,10 +423,10 @@ module showup::showup {
         while (i < len) {
             let participant = *vector::borrow(&participants, i);
             // Only participants can be marked as attended (avoid accidental scans)
-            assert!(table::contains(&event.participants, participant), E_NOT_PARTICIPANT);
+            assert!(vec_map::contains(&event.participants, &participant), E_NOT_PARTICIPANT);
             // Add attendee (aborts if already marked)
-            if (!table::contains(&event.attendees, participant)) {
-                table::add(&mut event.attendees, participant, true);
+            if (!vec_map::contains(&event.attendees, &participant)) {
+                vec_map::insert(&mut event.attendees, participant, true);
                 
                 // Emit event for each marked attendee
                 event::emit(EventAttended {
@@ -451,14 +451,14 @@ module showup::showup {
         assert!(now >= event.end_time, E_EVENT_NOT_ENDED);
 
         // Must be a participant and not already claimed
-        assert!(table::contains(&event.participants, sender), E_NOT_PARTICIPANT);
-        assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
+        assert!(vec_map::contains(&event.participants, &sender), E_NOT_PARTICIPANT);
+        assert!(!vec_map::contains(&event.claimed, &sender), E_ALREADY_CLAIMED);
 
         // Check if anyone attended
-        let n_attendees = table::length(&event.attendees);
+        let n_attendees = vec_map::length(&event.attendees);
         if (n_attendees == 0) {
             // No one attended - split total pot among remaining participants
-            let n_participants = table::length(&event.participants);
+            let n_participants = vec_map::length(&event.participants);
             assert!(n_participants > 0, E_NOT_PARTICIPANT); // Should not happen since sender is a participant
             
             // Lazy initialization of total_pot
@@ -469,7 +469,7 @@ module showup::showup {
             // Calculate split amounts fresh each time
             let base_amount = event.total_pot / n_participants;
             let remainder = event.total_pot % n_participants;
-            let claim_count = table::length(&event.claimed); // Count before marking current user as claimed
+            let claim_count = vec_map::length(&event.claimed); // Count before marking current user as claimed
             
             // Calculate payout: first remainder participants get base_amount + 1
             let payout_amount = if (claim_count < remainder) {
@@ -479,8 +479,8 @@ module showup::showup {
             };
             
             // Mark claimed after calculating payout (protect against reentrancy-style patterns)
-            if (!table::contains(&event.claimed, sender)) {
-                table::add(&mut event.claimed, sender, true);
+            if (!vec_map::contains(&event.claimed, &sender)) {
+                vec_map::insert(&mut event.claimed, sender, true);
             };
             
             let refund_balance = balance::split(&mut event.participant_vault, payout_amount);
@@ -496,7 +496,7 @@ module showup::showup {
             refund_coin
         } else {
             // Someone attended - check if this participant attended
-            assert!(table::contains(&event.attendees, sender), E_DID_NOT_ATTEND);
+            assert!(vec_map::contains(&event.attendees, &sender), E_DID_NOT_ATTEND);
             
             // Lazy initialization of total_pot
             if (event.total_pot == 0xFFFFFFFFFFFFFFFF) {
@@ -506,7 +506,7 @@ module showup::showup {
             // Calculate split amounts fresh each time
             let base_amount = event.total_pot / n_attendees;
             let remainder = event.total_pot % n_attendees;
-            let claim_count = table::length(&event.claimed); // Count before marking current user as claimed
+            let claim_count = vec_map::length(&event.claimed); // Count before marking current user as claimed
             
             // Calculate payout: first remainder attendees get base_amount + 1
             let payout_amount = if (claim_count < remainder) {
@@ -516,8 +516,8 @@ module showup::showup {
             };
             
             // Mark claimed after calculating payout (protect against reentrancy-style patterns)
-            if (!table::contains(&event.claimed, sender)) {
-                table::add(&mut event.claimed, sender, true);
+            if (!vec_map::contains(&event.claimed, &sender)) {
+                vec_map::insert(&mut event.claimed, sender, true);
             };
             
             let payout_bal = balance::split(&mut event.participant_vault, payout_amount);
@@ -543,19 +543,19 @@ module showup::showup {
         let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
 
         // Must have a pending request
-        assert!(table::contains(&event.pending_requests, sender), E_NOT_IN_REQUESTS);
+        assert!(vec_map::contains(&event.pending_requests, &sender), E_NOT_IN_REQUESTS);
         
         // Registration must have ended
         assert!(now >= event.registration_end_time, E_REGISTRATION_ENDED);
         
         // Cannot have already claimed
-        assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
+        assert!(!vec_map::contains(&event.claimed, &sender), E_ALREADY_CLAIMED);
 
         // Mark claimed first (protect against reentrancy-style patterns)
-        table::add(&mut event.claimed, sender, true);
+        vec_map::insert(&mut event.claimed, sender, true);
         
         // Remove from pending requests
-        table::remove(&mut event.pending_requests, sender);
+        vec_map::remove(&mut event.pending_requests, &sender);
         
         // Return stake amount from pending vault
         let refund_balance = balance::split(&mut event.pending_vault, event.stake_amount);
@@ -595,7 +595,7 @@ module showup::showup {
 
     public fun refund(
         event: &mut Event,
-        clock: &Clock,
+        _clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ): Coin<SUI> {
         let sender = sui::tx_context::sender(ctx);
@@ -603,12 +603,12 @@ module showup::showup {
         // Only when cancelled
         assert!(event.end_time == 0, E_EVENT_NOT_CANCELLED);
         // Only participants, and only if not already withdrawn via claim/refund
-        assert!(table::contains(&event.participants, sender), E_NOT_PARTICIPANT);
-        assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
+        assert!(vec_map::contains(&event.participants, &sender), E_NOT_PARTICIPANT);
+        assert!(!vec_map::contains(&event.claimed, &sender), E_ALREADY_CLAIMED);
         
         // Mark claimed to block double-withdrawal
-        if (!table::contains(&event.claimed, sender)) {
-            table::add(&mut event.claimed, sender, true);
+        if (!vec_map::contains(&event.claimed, &sender)) {
+            vec_map::insert(&mut event.claimed, sender, true);
         };
         
         // Fixed refund = stake amount from participant vault
@@ -678,15 +678,15 @@ module showup::showup {
     }
 
     public fun get_participants_count(event: &Event): u64 {
-        table::length(&event.participants)
+        vec_map::length(&event.participants)
     }
 
     public fun get_attendees_count(event: &Event): u64 {
-        table::length(&event.attendees)
+        vec_map::length(&event.attendees)
     }
 
     public fun get_claimed_count(event: &Event): u64 {
-        table::length(&event.claimed)
+        vec_map::length(&event.claimed)
     }
 
     public fun get_vault_balance(event: &Event): u64 {
@@ -709,7 +709,7 @@ module showup::showup {
         if (event.capacity == 0) { 
             0 
         } else { 
-            event.capacity - table::length(&event.participants) 
+            event.capacity - vec_map::length(&event.participants) 
         }
     }
 
@@ -718,15 +718,15 @@ module showup::showup {
     }
 
     public fun is_participant(event: &Event, participant: address): bool {
-        table::contains(&event.participants, participant)
+        vec_map::contains(&event.participants, &participant)
     }
 
     public fun is_attendee(event: &Event, attendee: address): bool {
-        table::contains(&event.attendees, attendee)
+        vec_map::contains(&event.attendees, &attendee)
     }
 
     public fun has_claimed(event: &Event, claimant: address): bool {
-        table::contains(&event.claimed, claimant)
+        vec_map::contains(&event.claimed, &claimant)
     }
 
     public fun must_request_to_join(event: &Event): bool {
@@ -734,15 +734,15 @@ module showup::showup {
     }
 
     public fun get_pending_requests_count(event: &Event): u64 {
-        table::length(&event.pending_requests)
+        vec_map::length(&event.pending_requests)
     }
 
     public fun has_pending_request(event: &Event, participant: address): bool {
-        table::contains(&event.pending_requests, participant)
+        vec_map::contains(&event.pending_requests, &participant)
     }
 
     public fun total_requested_spots(event: &Event): u64 {
-        table::length(&event.participants) + table::length(&event.pending_requests)
+        vec_map::length(&event.participants) + vec_map::length(&event.pending_requests)
     }
 
     public fun get_registration_start_time(event: &Event): u64 {
@@ -800,12 +800,15 @@ module showup::showup {
         
         // Use the values to avoid drop error
         sui::object::delete(id);
-        // For test cleanup, we'll transfer the tables to a dummy address
-        // In production, you might want to ensure tables are empty before destroying
-        sui::transfer::public_transfer(participants, @0x0);
-        sui::transfer::public_transfer(pending_requests, @0x0);
-        sui::transfer::public_transfer(attendees, @0x0);
-        sui::transfer::public_transfer(claimed, @0x0);
+        // For test cleanup, we'll extract the contents and let them drop naturally
+        // VecMap doesn't satisfy the key constraint, so we can't transfer it
+        let (participant_keys, participant_values) = vec_map::into_keys_values(participants);
+        let (pending_keys, pending_values) = vec_map::into_keys_values(pending_requests);
+        let (attendee_keys, attendee_values) = vec_map::into_keys_values(attendees);
+        let (claimed_keys, claimed_values) = vec_map::into_keys_values(claimed);
+        
+        // Let the vectors drop naturally (they have the drop ability)
+        // This avoids the need to manually destroy them
         // Send vault balances to organizer
         let participant_coin = coin::from_balance(participant_vault, &mut sui::tx_context::dummy());
         sui::transfer::public_transfer(participant_coin, organizer);

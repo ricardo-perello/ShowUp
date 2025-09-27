@@ -9,8 +9,8 @@ export const { networkConfig } = createNetworkConfig({
 });
 
 // Contract configuration
-export const CONTRACT_ADDRESS = '0xfc0a9067f6227065f476d0b10557801080054f6f633f2036abc8c47e6d77fa36';
-export const PACKAGE_ID = '0xfc0a9067f6227065f476d0b10557801080054f6f633f2036abc8c47e6d77fa36';
+export const CONTRACT_ADDRESS = '0x747cd833f2315c6d2399150daabfeea4994d584bd24dc55168a019203549196c';
+export const PACKAGE_ID = '0x747cd833f2315c6d2399150daabfeea4994d584bd24dc55168a019203549196c';
 
 // Event object type
 export interface Event {
@@ -155,7 +155,7 @@ export const queryNetworkEvents = async (
   }
 };
 
-// Function to check if a user is a participant by querying the table
+// Function to check if a user is a participant by querying the VecMap
 export const isUserParticipant = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   suiClient: any, 
@@ -165,7 +165,7 @@ export const isUserParticipant = async (
   try {
     console.log('🔍 Checking if user is participant:', userAddress, 'in event:', eventId);
     
-    // Query the event object to get the participants table
+    // Query the event object to get the participants VecMap
     const eventData = await suiClient.getObject({
       id: eventId,
       options: { showContent: true, showType: true }
@@ -176,43 +176,32 @@ export const isUserParticipant = async (
     }
 
     const fields = eventData.data.content.fields as Record<string, unknown>;
-    const participantsTable = fields.participants;
+    const participantsVecMap = fields.participants;
     
-    if (!participantsTable || typeof participantsTable !== 'object' || !('fields' in participantsTable)) {
+    if (!participantsVecMap || typeof participantsVecMap !== 'object' || !('fields' in participantsVecMap)) {
       return false;
     }
 
-    const tableFields = (participantsTable as { fields: Record<string, unknown> }).fields;
-    const tableId = tableFields.id;
+    const vecMapFields = (participantsVecMap as { fields: { contents: Array<{ fields: { key: string; value: boolean } }> } }).fields;
+    const contents = vecMapFields.contents;
     
-    // Check if the table has entries by looking at the size
-    const size = parseInt(String(tableFields.size || '0'));
-    console.log('📊 Participants table size:', size, 'table ID:', tableId);
+    // Check if the VecMap has entries by looking at the contents length
+    const size = contents.length;
+    console.log('📊 Participants VecMap size:', size);
     
     if (size === 0) {
       return false;
     }
 
-    // Try to get the specific table entry for this user
-    try {
-      const tableEntry = await suiClient.getDynamicFieldObject({
-        parentId: String(tableId),
-        name: {
-          type: 'address',
-          value: userAddress,
-        },
-      });
-      
-      console.log('🔍 Table entry for user:', tableEntry);
-      
-      // If we get a result, the user is in the table
-      if (tableEntry.data) {
-        console.log('✅ User found in participants table');
+    // Search through the contents array for the user's address
+    for (const entry of contents) {
+      if (entry.fields.key === userAddress) {
+        console.log('✅ User found in participants VecMap');
         return true;
       }
-    } catch {
-      console.log('🔍 User not found in participants table (this is normal if not a participant)');
     }
+    
+    console.log('🔍 User not found in participants VecMap');
 
     // Fallback: check transaction history
     const recentTxs = await suiClient.queryTransactionBlocks({
@@ -266,11 +255,11 @@ export const parseEventFromObject = (object: Record<string, unknown>): EventObje
 
   console.log('📋 Event fields:', fields);
 
-  // Extract table sizes for participant counts
-  const participantsTable = fields.participants as { fields?: { size?: string } } | undefined;
-  const pendingRequestsTable = fields.pending_requests as { fields?: { size?: string } } | undefined;
-  const attendeesTable = fields.attendees as { fields?: { size?: string } } | undefined;
-  const claimedTable = fields.claimed as { fields?: { size?: string } } | undefined;
+  // Extract VecMap sizes for participant counts
+  const participantsVecMap = fields.participants as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+  const pendingRequestsVecMap = fields.pending_requests as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+  const attendeesVecMap = fields.attendees as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+  const claimedVecMap = fields.claimed as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
 
   const parsedEvent = {
     id: String(object.objectId || ''),
@@ -285,10 +274,10 @@ export const parseEventFromObject = (object: Record<string, unknown>): EventObje
     capacity: String(fields.capacity || '0'),
     organizer: String(fields.organizer || ''),
     mustRequestToJoin: Boolean(fields.must_request_to_join || false),  // NEW
-    participants: Array(parseInt(participantsTable?.fields?.size || '0')).fill(''), // Create array with correct size
-    pendingRequests: Array(parseInt(pendingRequestsTable?.fields?.size || '0')).fill(''),  // Create array with correct size
-    attendees: Array(parseInt(attendeesTable?.fields?.size || '0')).fill(''),    // Create array with correct size
-    claimed: Array(parseInt(claimedTable?.fields?.size || '0')).fill(''),      // Create array with correct size
+    participants: participantsVecMap?.fields?.contents?.map(entry => entry.fields.key) || [], // Extract keys from VecMap
+    pendingRequests: pendingRequestsVecMap?.fields?.contents?.map(entry => entry.fields.key) || [],  // Extract keys from VecMap
+    attendees: attendeesVecMap?.fields?.contents?.map(entry => entry.fields.key) || [],    // Extract keys from VecMap
+    claimed: claimedVecMap?.fields?.contents?.map(entry => entry.fields.key) || [],      // Extract keys from VecMap
     participantVault: String(fields.participant_vault || '0'),  // NEW
     pendingVault: String(fields.pending_vault || '0'),          // NEW
     totalPot: String(fields.total_pot || '0'),                  // NEW
