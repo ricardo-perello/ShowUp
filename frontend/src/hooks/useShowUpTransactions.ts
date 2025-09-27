@@ -100,6 +100,16 @@ export function useShowUpTransactions() {
             }
             
             console.log('🎉 Event created with ID:', eventId);
+            
+            // Add the new event ID to the cache
+            if (eventId !== 'pending') {
+              setDiscoveredEventIds(prev => {
+                const updated = [...new Set([...prev, eventId])];
+                console.log('💾 Added new event to cache:', eventId, 'Total cached:', updated.length);
+                return updated;
+              });
+            }
+            
             resolve({
               eventId,
               transactionId: result.digest || 'pending',
@@ -357,6 +367,9 @@ export function useShowUpTransactions() {
     }
   }, [account, suiClient, handleError]);
 
+  // Simple cache for discovered events
+  const [discoveredEventIds, setDiscoveredEventIds] = useState<string[]>([]);
+
   // Get all events (not just owned by user) - query all Event objects
   const getAllEventsGlobal = useCallback(async (): Promise<EventObject[]> => {
     try {
@@ -364,27 +377,114 @@ export function useShowUpTransactions() {
       const eventType = getEventType(PACKAGE_ID);
       console.log('📦 Event type:', eventType);
       
-      // For now, we'll use a simple approach: get events from the current user
-      // In a production app, you'd want to use an indexer or query multiple addresses
-      const userEvents = await getAllEvents();
-      console.log('👤 User events found:', userEvents.length);
+      // Method 1: Query recent transactions to find event creation
+      console.log('🔍 Querying recent transactions...');
       
-      // Log the events for debugging
-      userEvents.forEach((event, index) => {
-        console.log(`📅 Event ${index + 1}:`, {
-          id: event.id,
-          name: event.name,
-          organizer: event.organizer
-        });
+      // Get recent transactions and look for create_event calls
+      const recentTxs = await suiClient.queryTransactionBlocks({
+        filter: {
+          MoveFunction: {
+            package: PACKAGE_ID,
+            module: 'showup',
+            function: 'create_event',
+          },
+        },
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+        limit: 50,
+        order: 'descending',
       });
+
+      console.log('📊 Recent transactions:', recentTxs);
       
-      return userEvents;
+      // Extract event IDs from transaction effects
+      const eventIds: string[] = [];
+      
+      for (const tx of recentTxs.data) {
+        console.log('📄 Processing transaction:', tx.digest);
+        
+        if (tx.objectChanges) {
+          for (const change of tx.objectChanges) {
+            if (change.type === 'created' && 
+                change.objectType === eventType) {
+              console.log('✅ Found Event object creation:', change.objectId);
+              eventIds.push(change.objectId);
+            }
+          }
+        }
+      }
+
+      console.log('📋 Found event IDs:', eventIds);
+
+      // Update cache with new event IDs
+      if (eventIds.length > 0) {
+        setDiscoveredEventIds(prev => {
+          const combined = [...new Set([...prev, ...eventIds])];
+          console.log('💾 Updated event cache:', combined);
+          return combined;
+        });
+      }
+
+      // Use cached event IDs if no new ones found
+      const eventIdsToFetch = eventIds.length > 0 ? eventIds : discoveredEventIds;
+      console.log('🎯 Event IDs to fetch:', eventIdsToFetch);
+
+      // Method 2: If no events found via query, try alternative approaches
+      if (eventIdsToFetch.length === 0) {
+        console.log('🔍 No events found via query or cache, trying alternative approaches...');
+        
+        // Try to get events from the current user as fallback
+        const userEvents = await getAllEvents();
+        console.log('👤 User events found:', userEvents.length);
+        
+        // In a real app, you might also want to:
+        // 1. Query from a list of known addresses
+        // 2. Use an indexer service
+        // 3. Store event IDs in a separate registry
+        
+        return userEvents;
+      }
+
+      // Fetch the actual event objects
+      const events: EventObject[] = [];
+      
+      for (const eventId of eventIdsToFetch) {
+        try {
+          console.log('🔍 Fetching event object:', eventId);
+          const eventData = await suiClient.getObject({
+            id: eventId,
+            options: {
+              showContent: true,
+              showType: true,
+            },
+          });
+
+          if (eventData.data) {
+            const event = parseEventFromObject(eventData.data);
+            console.log('✅ Parsed event:', event);
+            events.push(event);
+          }
+        } catch (err) {
+          console.warn('❌ Failed to fetch event:', eventId, err);
+        }
+      }
+
+      console.log('🎉 Final events array:', events);
+      return events;
     } catch (err) {
       console.error('❌ Error getting all events:', err);
       handleError(err);
       return [];
     }
   }, [suiClient, handleError, getAllEvents]);
+
+  // Function to refresh the global events cache
+  const refreshGlobalEvents = useCallback(() => {
+    console.log('🔄 Refreshing global events cache...');
+    setDiscoveredEventIds([]); // Clear cache to force fresh query
+  }, []);
 
   return {
     // State
@@ -402,6 +502,7 @@ export function useShowUpTransactions() {
     getUserSUICoins,
     getAllEvents,
     getAllEventsGlobal,
+    refreshGlobalEvents,
     
     // Utils
     clearError,

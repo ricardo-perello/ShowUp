@@ -12,26 +12,26 @@ import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 export default function EventsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const { getAllEventsGlobal, loading: transactionLoading, error } = useShowUpTransactions();
+  const { getAllEventsGlobal, refreshGlobalEvents, loading: transactionLoading, error } = useShowUpTransactions();
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoading(true);
-      
-      try {
-        const fetchedEvents = await getAllEventsGlobal();
-        setEvents(fetchedEvents);
-      } catch (error) {
-        console.error('Error fetching events:', error);
-        // Fallback to empty array on error
-        setEvents([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const fetchEvents = async () => {
+    setIsLoading(true);
+    
+    try {
+      const fetchedEvents = await getAllEventsGlobal();
+      setEvents(fetchedEvents);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      // Fallback to empty array on error
+      setEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchEvents();
   }, [getAllEventsGlobal]);
 
@@ -69,6 +69,16 @@ export default function EventsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Events</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <Button 
+                onClick={async () => {
+                  refreshGlobalEvents();
+                  await fetchEvents();
+                }}
+                variant="outline"
+                disabled={isLoading || transactionLoading}
+              >
+                {isLoading || transactionLoading ? 'Loading...' : 'Refresh'}
+              </Button>
               <Link href="/create">
                 <Button>Create Event</Button>
               </Link>
