@@ -62,16 +62,35 @@ export default function EventsPage() {
 
 
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(parseInt(timestamp) * 1000);
+    // The contract now stores Unix timestamps directly (in seconds)
+    const unixTimestamp = parseInt(timestamp);
+    const date = new Date(unixTimestamp * 1000);
     return date.toLocaleString();
   };
 
   const getEventStatus = (event: EventObject) => {
+    // The contract now stores Unix timestamps directly (in seconds)
     const now = Math.floor(Date.now() / 1000);
+    
     const startTime = parseInt(event.startTime);
     const registrationStartTime = parseInt(event.registrationStartTime);
     const registrationEndTime = parseInt(event.registrationEndTime);
     const endTime = parseInt(event.endTime);
+    
+    // Debug logging
+    console.log('🕐 Event status check:', {
+      eventId: event.id,
+      now,
+      registrationStartTime,
+      registrationEndTime,
+      startTime,
+      endTime,
+      status: now < registrationStartTime ? 'registration_not_started' :
+              now >= registrationStartTime && now < registrationEndTime ? 'upcoming' :
+              now >= registrationEndTime && now < startTime ? 'registration_closed' :
+              now >= startTime && now < endTime ? 'ongoing' :
+              now >= endTime ? 'ended' : 'unknown'
+    });
     
     if (now < registrationStartTime) return 'registration_not_started';
     if (now >= registrationStartTime && now < registrationEndTime) return 'upcoming';

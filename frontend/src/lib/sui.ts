@@ -9,8 +9,8 @@ export const { networkConfig } = createNetworkConfig({
 });
 
 // Contract configuration
-export const CONTRACT_ADDRESS = '0x83220ccf961a102b198a9b75692c405d3aea9b4fea85f022cabe492bc26f682e';
-export const PACKAGE_ID = '0x83220ccf961a102b198a9b75692c405d3aea9b4fea85f022cabe492bc26f682e';
+export const CONTRACT_ADDRESS = '0xfc0a9067f6227065f476d0b10557801080054f6f633f2036abc8c47e6d77fa36';
+export const PACKAGE_ID = '0xfc0a9067f6227065f476d0b10557801080054f6f633f2036abc8c47e6d77fa36';
 
 // Event object type
 export interface Event {
@@ -196,7 +196,7 @@ export const isUserParticipant = async (
     // Try to get the specific table entry for this user
     try {
       const tableEntry = await suiClient.getDynamicFieldObject({
-        parentId: eventId,
+        parentId: String(tableId),
         name: {
           type: 'address',
           value: userAddress,
@@ -266,6 +266,12 @@ export const parseEventFromObject = (object: Record<string, unknown>): EventObje
 
   console.log('📋 Event fields:', fields);
 
+  // Extract table sizes for participant counts
+  const participantsTable = fields.participants as { fields?: { size?: string } } | undefined;
+  const pendingRequestsTable = fields.pending_requests as { fields?: { size?: string } } | undefined;
+  const attendeesTable = fields.attendees as { fields?: { size?: string } } | undefined;
+  const claimedTable = fields.claimed as { fields?: { size?: string } } | undefined;
+
   const parsedEvent = {
     id: String(object.objectId || ''),
     name: String(fields.name || ''),
@@ -279,10 +285,10 @@ export const parseEventFromObject = (object: Record<string, unknown>): EventObje
     capacity: String(fields.capacity || '0'),
     organizer: String(fields.organizer || ''),
     mustRequestToJoin: Boolean(fields.must_request_to_join || false),  // NEW
-    participants: [], // Tables need special handling - will be populated by isUserParticipant
-    pendingRequests: [],  // Tables need special handling
-    attendees: [],    // Tables need special handling
-    claimed: [],      // Tables need special handling
+    participants: Array(parseInt(participantsTable?.fields?.size || '0')).fill(''), // Create array with correct size
+    pendingRequests: Array(parseInt(pendingRequestsTable?.fields?.size || '0')).fill(''),  // Create array with correct size
+    attendees: Array(parseInt(attendeesTable?.fields?.size || '0')).fill(''),    // Create array with correct size
+    claimed: Array(parseInt(claimedTable?.fields?.size || '0')).fill(''),      // Create array with correct size
     participantVault: String(fields.participant_vault || '0'),  // NEW
     pendingVault: String(fields.pending_vault || '0'),          // NEW
     totalPot: String(fields.total_pot || '0'),                  // NEW

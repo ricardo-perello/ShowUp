@@ -56,7 +56,7 @@ export default function ActivityPage() {
 
   useEffect(() => {
     fetchEvents();
-  }, [selectedEventType, queryNetworkEvents]);
+  }, [selectedEventType]);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(parseInt(timestamp));

@@ -20,11 +20,28 @@ export default function CreateEvent() {
     location: '',
     stakeAmount: '',
     capacity: '',
-    durationHours: '2', // Default 2 hours
-    registrationStartHours: '0', // NEW: Default 0 hours (registration starts immediately)
-    registrationEndHours: '1',   // NEW: Default 1 hour before event starts
-    mustRequestToJoin: false, // NEW: Default to public event
+    registrationStartTime: new Date(), // Default to now
+    registrationEndTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Default to 24 hours from now
+    eventStartTime: new Date(Date.now() + 25 * 60 * 60 * 1000), // Default to 25 hours from now
+    eventEndTime: new Date(Date.now() + 27 * 60 * 60 * 1000), // Default to 27 hours from now (2 hour event)
+    mustRequestToJoin: false, // Default to public event
   });
+
+  // Helper function to safely format date for input
+  const formatDateForInput = (date: Date) => {
+    if (!date || isNaN(date.getTime())) {
+      return new Date().toISOString().split('T')[0];
+    }
+    return date.toISOString().split('T')[0];
+  };
+
+  // Helper function to safely format time for input
+  const formatTimeForInput = (date: Date) => {
+    if (!date || isNaN(date.getTime())) {
+      return new Date().toTimeString().slice(0, 5);
+    }
+    return date.toTimeString().slice(0, 5);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,10 +54,11 @@ export default function CreateEvent() {
         location: formData.location,
         stakeAmount: parseFloat(formData.stakeAmount),
         capacity: parseInt(formData.capacity) || 0, // 0 means unlimited
-        durationHours: parseFloat(formData.durationHours),
-        registrationStartHours: parseFloat(formData.registrationStartHours), // NEW
-        registrationEndHours: parseFloat(formData.registrationEndHours),     // NEW
-        mustRequestToJoin: formData.mustRequestToJoin, // NEW
+        registrationStartTime: formData.registrationStartTime,
+        registrationEndTime: formData.registrationEndTime,
+        eventStartTime: formData.eventStartTime,
+        eventEndTime: formData.eventEndTime,
+        mustRequestToJoin: formData.mustRequestToJoin,
       });
 
       // Event created successfully!
@@ -180,62 +198,182 @@ export default function CreateEvent() {
             </div>
 
             <div>
-              <label htmlFor="durationHours" className="block text-sm font-medium text-gray-700 mb-2">
-                Event Duration (Hours)
+              <label htmlFor="eventStartTime" className="block text-sm font-medium text-gray-700 mb-2">
+                Event Starts
               </label>
-              <input
-                type="number"
-                id="durationHours"
-                value={formData.durationHours}
-                onChange={(e) => setFormData({ ...formData, durationHours: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter duration in hours"
-                required
-                min="0.1"
-                step="0.1"
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="date"
+                  value={formatDateForInput(formData.eventStartTime)}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
+                    if (!isNaN(newDate.getTime())) {
+                      const currentTime = formData.eventStartTime;
+                      newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+                      setFormData({ ...formData, eventStartTime: newDate });
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <input
+                  type="time"
+                  value={formatTimeForInput(formData.eventStartTime)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Only update if we have a complete time format (HH:MM)
+                    if (value.length === 5 && value.includes(':')) {
+                      const [hours, minutes] = value.split(':').map(Number);
+                      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+                        const newDate = new Date(formData.eventStartTime);
+                        if (!isNaN(newDate.getTime())) {
+                          newDate.setHours(hours, minutes);
+                          setFormData({ ...formData, eventStartTime: newDate });
+                        }
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
               <p className="mt-1 text-sm text-gray-500">
-                How long the event will last (participants can claim after this duration)
+                When the actual event begins
               </p>
             </div>
 
             <div>
-              <label htmlFor="registrationStartHours" className="block text-sm font-medium text-gray-700 mb-2">
-                Registration Start (Hours Before Event)
+              <label htmlFor="eventEndTime" className="block text-sm font-medium text-gray-700 mb-2">
+                Event Ends
               </label>
-              <input
-                type="number"
-                id="registrationStartHours"
-                value={formData.registrationStartHours}
-                onChange={(e) => setFormData({ ...formData, registrationStartHours: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter hours before event when registration opens"
-                required
-                min="0"
-                step="0.1"
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="date"
+                  value={formatDateForInput(formData.eventEndTime)}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
+                    if (!isNaN(newDate.getTime())) {
+                      const currentTime = formData.eventEndTime;
+                      newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+                      setFormData({ ...formData, eventEndTime: newDate });
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <input
+                  type="time"
+                  value={formatTimeForInput(formData.eventEndTime)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Only update if we have a complete time format (HH:MM)
+                    if (value.length === 5 && value.includes(':')) {
+                      const [hours, minutes] = value.split(':').map(Number);
+                      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+                        const newDate = new Date(formData.eventEndTime);
+                        if (!isNaN(newDate.getTime())) {
+                          newDate.setHours(hours, minutes);
+                          setFormData({ ...formData, eventEndTime: newDate });
+                        }
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
               <p className="mt-1 text-sm text-gray-500">
-                When participants can start joining or requesting to join (0 = immediately)
+                When the event ends (participants can claim after this time)
               </p>
             </div>
 
             <div>
-              <label htmlFor="registrationEndHours" className="block text-sm font-medium text-gray-700 mb-2">
-                Registration Deadline (Hours Before Event)
+              <label htmlFor="registrationStartTime" className="block text-sm font-medium text-gray-700 mb-2">
+                Registration Opens
               </label>
-              <input
-                type="number"
-                id="registrationEndHours"
-                value={formData.registrationEndHours}
-                onChange={(e) => setFormData({ ...formData, registrationEndHours: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter hours before event when registration closes"
-                required
-                min="0.1"
-                step="0.1"
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="date"
+                  value={formatDateForInput(formData.registrationStartTime)}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
+                    if (!isNaN(newDate.getTime())) {
+                      const currentTime = formData.registrationStartTime;
+                      newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+                      setFormData({ ...formData, registrationStartTime: newDate });
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <input
+                  type="time"
+                  value={formatTimeForInput(formData.registrationStartTime)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Only update if we have a complete time format (HH:MM)
+                    if (value.length === 5 && value.includes(':')) {
+                      const [hours, minutes] = value.split(':').map(Number);
+                      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+                        const newDate = new Date(formData.registrationStartTime);
+                        if (!isNaN(newDate.getTime())) {
+                          newDate.setHours(hours, minutes);
+                          setFormData({ ...formData, registrationStartTime: newDate });
+                        }
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
               <p className="mt-1 text-sm text-gray-500">
-                When participants can no longer join or request to join (e.g., 1 hour before event starts)
+                When participants can start joining or requesting to join
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="registrationEndTime" className="block text-sm font-medium text-gray-700 mb-2">
+                Registration Closes
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="date"
+                  value={formatDateForInput(formData.registrationEndTime)}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
+                    if (!isNaN(newDate.getTime())) {
+                      const currentTime = formData.registrationEndTime;
+                      newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+                      setFormData({ ...formData, registrationEndTime: newDate });
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <input
+                  type="time"
+                  value={formatTimeForInput(formData.registrationEndTime)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Only update if we have a complete time format (HH:MM)
+                    if (value.length === 5 && value.includes(':')) {
+                      const [hours, minutes] = value.split(':').map(Number);
+                      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+                        const newDate = new Date(formData.registrationEndTime);
+                        if (!isNaN(newDate.getTime())) {
+                          newDate.setHours(hours, minutes);
+                          setFormData({ ...formData, registrationEndTime: newDate });
+                        }
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                When participants can no longer join or request to join
               </p>
             </div>
 
@@ -282,9 +420,10 @@ export default function CreateEvent() {
                 <li>• Location: {formData.location || 'TBD'}</li>
                 <li>• Stake: {formData.stakeAmount || 'X'} SUI per participant</li>
                 <li>• Capacity: {formData.capacity || 'Unlimited'} participants</li>
-                <li>• Duration: {formData.durationHours || 'X'} hours</li>
-                <li>• Registration starts: {formData.registrationStartHours || 'X'} hours before event</li>
-                <li>• Registration closes: {formData.registrationEndHours || 'X'} hours before event</li>
+                <li>• Registration opens: {formData.registrationStartTime.toLocaleString()}</li>
+                <li>• Registration closes: {formData.registrationEndTime.toLocaleString()}</li>
+                <li>• Event starts: {formData.eventStartTime.toLocaleString()}</li>
+                <li>• Event ends: {formData.eventEndTime.toLocaleString()}</li>
                 <li>• Type: {formData.mustRequestToJoin ? 'Private (requires approval)' : 'Public (direct join)'}</li>
                 <li>• You can scan QR codes to mark attendance</li>
                 <li>• Attendees will share no-show penalties equally</li>
@@ -299,7 +438,7 @@ export default function CreateEvent() {
               </Link>
               <Button 
                 type="submit" 
-                disabled={loading || !formData.name || !formData.description || !formData.location || !formData.stakeAmount || !formData.durationHours || !formData.registrationEndHours}
+                disabled={loading || !formData.name || !formData.description || !formData.location || !formData.stakeAmount}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {loading ? 'Creating...' : 'Create Event'}

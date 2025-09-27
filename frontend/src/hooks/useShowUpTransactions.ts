@@ -35,17 +35,18 @@ export function useShowUpTransactions() {
   }, []);
 
   // Create event
-  const createEvent = useCallback(async (params: {
-    name: string;
-    description: string;
-    location: string;
-    stakeAmount: number;
-    capacity: number;
-    durationHours: number;
-    registrationStartHours: number; // NEW: Hours before event starts when registration opens
-    registrationEndHours: number;   // NEW: Hours before event starts when registration ends
-    mustRequestToJoin: boolean; // NEW: Public vs private event
-  }) => {
+    const createEvent = useCallback(async (params: {
+      name: string;
+      description: string;
+      location: string;
+      stakeAmount: number;
+      capacity: number;
+      registrationStartTime: Date; // NEW: When registration opens
+      registrationEndTime: Date;   // NEW: When registration closes
+      eventStartTime: Date;        // NEW: When event starts
+      eventEndTime: Date;          // NEW: When event ends
+      mustRequestToJoin: boolean; // NEW: Public vs private event
+    }) => {
     console.log('🚀 Starting createEvent with params:', params);
     console.log('👤 Account:', account?.address);
     
@@ -63,19 +64,25 @@ export function useShowUpTransactions() {
       }
       console.log('✅ Gas coins available:', gasCoins.length);
 
-      const startTime = transactionExecutor.getCurrentEpoch();
-      const registrationStartTime = startTime + (params.registrationStartHours * 3600);
-      const registrationEndTime = startTime + (params.registrationEndHours * 3600);
-      const endTime = transactionExecutor.createEndTime(params.durationHours);
+      // Get current Sui epoch from network first
+      const currentEpoch = await transactionExecutor.getCurrentSuiEpoch(suiClient);
+      
+      // Convert Date objects to Unix timestamps, then to Sui epochs
+      const registrationStartEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.registrationStartTime.getTime() / 1000));
+      const registrationEndEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.registrationEndTime.getTime() / 1000));
+      const startEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.eventStartTime.getTime() / 1000));
+      const endEpoch = transactionExecutor.unixToSuiEpoch(Math.floor(params.eventEndTime.getTime() / 1000));
       
       console.log('⏰ Event timing:', { 
-        startTime, 
-        registrationStartTime,
-        registrationEndTime, 
-        endTime, 
-        durationHours: params.durationHours,
-        registrationStartHours: params.registrationStartHours,
-        registrationEndHours: params.registrationEndHours,
+        currentEpoch,
+        registrationStartEpoch, 
+        registrationEndEpoch,
+        startEpoch, 
+        endEpoch,
+        registrationStartTime: params.registrationStartTime,
+        registrationEndTime: params.registrationEndTime,
+        eventStartTime: params.eventStartTime,
+        eventEndTime: params.eventEndTime,
         mustRequestToJoin: params.mustRequestToJoin
       });
 
@@ -83,10 +90,10 @@ export function useShowUpTransactions() {
         name: params.name,
         description: params.description,
         location: params.location,
-        startTime,
-        registrationStartTime, // NEW: When registration opens
-        registrationEndTime,   // NEW: When registration closes
-        endTime,
+        startTime: startEpoch,
+        registrationStartTime: registrationStartEpoch, // NEW: When registration opens
+        registrationEndTime: registrationEndEpoch,   // NEW: When registration closes
+        endTime: endEpoch,
         stakeAmount: params.stakeAmount,
         capacity: params.capacity,
         mustRequestToJoin: params.mustRequestToJoin, // NEW
@@ -131,8 +138,6 @@ export function useShowUpTransactions() {
             resolve({
               eventId,
               transactionId: result.digest || 'pending',
-              startTime,
-              endTime,
               message: 'Event created successfully!',
             });
           },
@@ -231,6 +236,7 @@ export function useShowUpTransactions() {
         arguments: [
           tx.object(eventId),
           stakeCoin, // Use the split coin for staking
+          tx.object('0x6'), // Clock object at address 0x6
         ],
       });
 
@@ -588,6 +594,7 @@ export function useShowUpTransactions() {
         arguments: [
           tx.object(eventId),
           stakeCoin,
+          tx.object('0x6'), // Clock object at address 0x6
         ],
       });
 

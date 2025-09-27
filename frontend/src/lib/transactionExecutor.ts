@@ -55,6 +55,7 @@ export class TransactionExecutor {
       arguments: [
         tx.object(eventId),
         tx.object(stakeCoinId),
+        tx.object('0x6'), // Clock object at address 0x6
       ],
     });
 
@@ -88,7 +89,10 @@ export class TransactionExecutor {
     
     const [coin] = tx.moveCall({
       target: `${this.packageId}::showup::claim`,
-      arguments: [tx.object(eventId)],
+      arguments: [
+        tx.object(eventId),
+        tx.object('0x6'), // Clock object at address 0x6
+      ],
     });
 
     // Transfer the claimed coin back to user
@@ -106,7 +110,10 @@ export class TransactionExecutor {
     
     const [coin] = tx.moveCall({
       target: `${this.packageId}::showup::refund`,
-      arguments: [tx.object(eventId)],
+      arguments: [
+        tx.object(eventId),
+        tx.object('0x6'), // Clock object at address 0x6
+      ],
     });
 
     // Transfer the refunded coin back to user
@@ -124,7 +131,10 @@ export class TransactionExecutor {
     
     tx.moveCall({
       target: `${this.packageId}::showup::cancel_event`,
-      arguments: [tx.object(eventId)],
+      arguments: [
+        tx.object(eventId),
+        tx.object('0x6'), // Clock object at address 0x6
+      ],
     });
 
     // Set gas budget
@@ -145,7 +155,34 @@ export class TransactionExecutor {
 
   // Helper function to get current epoch
   getCurrentEpoch(): number {
+    // Return current Unix timestamp (seconds since epoch)
     return Math.floor(Date.now() / 1000);
+  }
+
+  // Helper function to convert Unix timestamp to Sui epoch
+  unixToSuiEpoch(unixTimestamp: number): number {
+    // The contract now uses Unix timestamps directly (in seconds)
+    // No conversion needed - just return the Unix timestamp
+    return unixTimestamp;
+  }
+
+  // Helper function to convert Sui epoch to Unix timestamp
+  suiEpochToUnix(epoch: number): number {
+    // The contract now stores Unix timestamps directly
+    // No conversion needed - just return the epoch
+    return epoch;
+  }
+
+  // Helper function to get current Sui epoch from network
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getCurrentSuiEpoch(suiClient: any): Promise<number> {
+    try {
+      // Return current Unix timestamp (seconds since epoch)
+      return Math.floor(Date.now() / 1000);
+    } catch (error) {
+      console.warn('Failed to get current Sui epoch, using approximation:', error);
+      return this.getCurrentEpoch();
+    }
   }
 
   // Helper function to create event end time
@@ -162,6 +199,7 @@ export class TransactionExecutor {
       arguments: [
         tx.object(eventId),
         tx.object(stakeCoinId),
+        tx.object('0x6'), // Clock object at address 0x6
       ],
     });
 
@@ -209,6 +247,7 @@ export class TransactionExecutor {
       target: `${this.packageId}::showup::withdraw_from_event`,
       arguments: [
         tx.object(eventId),
+        tx.object('0x6'), // Clock object at address 0x6
       ],
     });
 
@@ -224,6 +263,7 @@ export class TransactionExecutor {
       target: `${this.packageId}::showup::claim_pending_stake`,
       arguments: [
         tx.object(eventId),
+        tx.object('0x6'), // Clock object at address 0x6
       ],
     });
 
