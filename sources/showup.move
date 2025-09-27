@@ -173,6 +173,143 @@ module showup::showup {
         sui::transfer::share_object(event);
     }
 
+    /// Convenience: Create a mock event pre-populated with participants, attendees, and pending requests.
+    /// Frontend can pass in seed funds for participant and pending vaults to reflect balances in UI.
+    /// The function shares the event and emits the standard EventCreated event.
+    public entry fun create_mock_event(
+        name: String,
+        description: String,
+        location: String,
+        start_time: u64,
+        registration_start_time: u64,
+        registration_end_time: u64,
+        end_time: u64,
+        stake_amount: u64,
+        capacity: u64,
+        must_request_to_join: bool,
+        participants: vector<address>,
+        attendees: vector<address>,
+        pending: vector<address>,
+        participant_fund: Coin<SUI>,
+        pending_fund: Coin<SUI>,
+        ctx: &mut sui::tx_context::TxContext
+    ) {
+        let mut event = Event {
+            id: sui::object::new(ctx),
+            must_request_to_join,
+            organizer: sui::tx_context::sender(ctx),
+            name,
+            description,
+            location,
+            start_time,
+            registration_start_time,
+            registration_end_time,
+            end_time,
+            stake_amount,
+            capacity,
+            participants: table::new<address, bool>(ctx),
+            pending_requests: table::new<address, bool>(ctx),
+            attendees: table::new<address, bool>(ctx),
+            claimed: table::new<address, bool>(ctx),
+            participant_vault: balance::zero<SUI>(),
+            pending_vault: balance::zero<SUI>(),
+            total_pot: 0xFFFFFFFFFFFFFFFF, // Negative value to indicate uninitialized
+        };
+
+        // Seed vaults
+        let p_bal = coin::into_balance(participant_fund);
+        balance::join(&mut event.participant_vault, p_bal);
+        let q_bal = coin::into_balance(pending_fund);
+        balance::join(&mut event.pending_vault, q_bal);
+
+        let organizer = event.organizer;
+
+        // Populate participants
+        let mut i = 0;
+        let n = vector::length(&participants);
+        while (i < n) {
+            let addr = *vector::borrow(&participants, i);
+            if (addr != organizer && !table::contains(&event.participants, addr)) {
+                table::add(&mut event.participants, addr, true);
+            };
+            i = i + 1;
+        };
+
+        // Populate pending requests (skip addresses already participants)
+        let mut j = 0;
+        let m = vector::length(&pending);
+        while (j < m) {
+            let addr = *vector::borrow(&pending, j);
+            if (!table::contains(&event.participants, addr) && !table::contains(&event.pending_requests, addr)) {
+                table::add(&mut event.pending_requests, addr, true);
+            };
+            j = j + 1;
+        };
+
+        // Populate attendees (only for addresses that are participants)
+        let mut k = 0;
+        let t = vector::length(&attendees);
+        while (k < t) {
+            let addr = *vector::borrow(&attendees, k);
+            if (table::contains(&event.participants, addr) && !table::contains(&event.attendees, addr)) {
+                table::add(&mut event.attendees, addr, true);
+            };
+            k = k + 1;
+        };
+
+        // Emit created event for indexing
+        event::emit(EventCreated {
+            event_id: sui::object::uid_to_inner(&event.id),
+            organizer,
+            name: event.name,
+            stake_amount: event.stake_amount,
+            capacity: event.capacity,
+            must_request_to_join: event.must_request_to_join,
+        });
+
+        // Share the event
+        sui::transfer::share_object(event);
+    }
+
+    /// Variant without funding coins. Useful when you want a populated object without vault balances.
+    public entry fun create_mock_event_unfunded(
+        name: String,
+        description: String,
+        location: String,
+        start_time: u64,
+        registration_start_time: u64,
+        registration_end_time: u64,
+        end_time: u64,
+        stake_amount: u64,
+        capacity: u64,
+        must_request_to_join: bool,
+        participants: vector<address>,
+        attendees: vector<address>,
+        pending: vector<address>,
+        ctx: &mut sui::tx_context::TxContext
+    ) {
+        let zero_coin_p = coin::zero<SUI>(ctx);
+        let zero_coin_q = coin::zero<SUI>(ctx);
+        create_mock_event(
+            name,
+            description,
+            location,
+            start_time,
+            registration_start_time,
+            registration_end_time,
+            end_time,
+            stake_amount,
+            capacity,
+            must_request_to_join,
+            participants,
+            attendees,
+            pending,
+            zero_coin_p,
+            zero_coin_q,
+            ctx
+        );
+    }
+
     // Test-only function to create event without sharing it
     #[test_only]
     public fun create_event_for_testing(
