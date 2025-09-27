@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
+import { Transaction } from '@mysten/sui/transactions';
 import { transactionExecutor } from '@/lib/transactionExecutor';
 import { PACKAGE_ID, getEventType, parseEventFromObject, EventObject } from '@/lib/sui';
 
@@ -134,15 +135,92 @@ export function useShowUpTransactions() {
     }
   }, [account, signAndExecuteTransaction, handleError]);
 
+  // Get user's SUI coins
+  const getUserSUICoins = useCallback(async (minAmount: number) => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    try {
+      console.log('💰 Getting SUI coins for account:', account.address);
+      const coins = await suiClient.getCoins({
+        owner: account.address,
+        coinType: '0x2::sui::SUI',
+      });
+
+      console.log('💰 Available coins:', coins.data.map(coin => ({
+        id: coin.coinObjectId,
+        balance: coin.balance,
+        balanceInSUI: (parseInt(coin.balance) / 1_000_000_000).toFixed(4)
+      })));
+
+      // Filter coins that have enough balance
+      const suitableCoins = coins.data
+        .filter(coin => parseInt(coin.balance) >= minAmount)
+        .map(coin => coin.coinObjectId);
+
+      console.log('💰 Suitable coins for min amount', minAmount, ':', suitableCoins);
+      return suitableCoins;
+    } catch (err) {
+      console.error('💰 Error getting SUI coins:', err);
+      handleError(err);
+      return [];
+    }
+  }, [account, suiClient, handleError]);
+
   // Join event
-  const joinEvent = useCallback(async (eventId: string, stakeCoinId: string) => {
+  const joinEvent = useCallback(async (eventId: string) => {
     if (!account) throw new Error('Wallet not connected');
     
     setLoading(true);
     setError(null);
     
     try {
-      const tx = transactionExecutor.joinEventTransaction(eventId, stakeCoinId);
+      // Get the event to check stake amount
+      const eventData = await suiClient.getObject({
+        id: eventId,
+        options: { showContent: true, showType: true }
+      });
+
+      if (!eventData.data?.content || !('fields' in eventData.data.content)) {
+        throw new Error('Event not found');
+      }
+
+      const eventFields = eventData.data.content.fields as any;
+      const stakeAmount = parseInt(eventFields.stake_amount || '0');
+      const gasAmount = 100000000; // 0.1 SUI for gas
+      const totalNeeded = stakeAmount + gasAmount;
+
+      console.log('💰 Join event requirements:', {
+        stakeAmount: stakeAmount / 1_000_000_000 + ' SUI',
+        gasAmount: gasAmount / 1_000_000_000 + ' SUI',
+        totalNeeded: totalNeeded / 1_000_000_000 + ' SUI'
+      });
+
+      // Check if we have enough balance
+      console.log('🔍 Checking available coins...');
+      const allCoins = await getUserSUICoins(totalNeeded);
+      if (allCoins.length === 0) {
+        throw new Error(`Insufficient SUI balance. You need at least ${totalNeeded / 1_000_000_000} SUI (${stakeAmount / 1_000_000_000} for stake + ${gasAmount / 1_000_000_000} for gas).`);
+      }
+      console.log('✅ Available coins:', allCoins.length);
+
+      // Create transaction with proper coin splitting
+      const tx = new Transaction();
+      
+      // Split the gas coin to create a specific coin for staking
+      const [stakeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(stakeAmount)]);
+      
+      tx.moveCall({
+        target: `${PACKAGE_ID}::showup::join_event`,
+        arguments: [
+          tx.object(eventId),
+          stakeCoin, // Use the split coin for staking
+        ],
+      });
+
+      // Set gas budget
+      tx.setGasBudget(100000000); // 0.1 SUI in MIST
+
+      console.log('📝 Join event transaction created, executing...');
 
       // Execute the transaction
       signAndExecuteTransaction({
@@ -159,7 +237,7 @@ export function useShowUpTransactions() {
     } finally {
       setLoading(false);
     }
-  }, [account, signAndExecuteTransaction, handleError]);
+  }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
 
   // Mark attendance
   const markAttendance = useCallback(async (eventId: string, participantAddress: string) => {
@@ -286,37 +364,6 @@ export function useShowUpTransactions() {
     } catch (err) {
       handleError(err);
       throw err;
-    }
-  }, [account, suiClient, handleError]);
-
-  // Get user's SUI coins
-  const getUserSUICoins = useCallback(async (minAmount: number) => {
-    if (!account) throw new Error('Wallet not connected');
-    
-    try {
-      console.log('💰 Getting SUI coins for account:', account.address);
-      const coins = await suiClient.getCoins({
-        owner: account.address,
-        coinType: '0x2::sui::SUI',
-      });
-
-      console.log('💰 Available coins:', coins.data.map(coin => ({
-        id: coin.coinObjectId,
-        balance: coin.balance,
-        balanceInSUI: (parseInt(coin.balance) / 1_000_000_000).toFixed(4)
-      })));
-
-      // Filter coins that have enough balance
-      const suitableCoins = coins.data
-        .filter(coin => parseInt(coin.balance) >= minAmount)
-        .map(coin => coin.coinObjectId);
-
-      console.log('💰 Suitable coins for min amount', minAmount, ':', suitableCoins);
-      return suitableCoins;
-    } catch (err) {
-      console.error('💰 Error getting SUI coins:', err);
-      handleError(err);
-      return [];
     }
   }, [account, suiClient, handleError]);
 

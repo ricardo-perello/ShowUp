@@ -9,8 +9,8 @@ export const { networkConfig } = createNetworkConfig({
 });
 
 // Contract configuration
-export const CONTRACT_ADDRESS = '0xef86f8e45170242ca0307be6f8b13dd55ac83c891b6c5d0b62a1bce9665a2201';
-export const PACKAGE_ID = '0xef86f8e45170242ca0307be6f8b13dd55ac83c891b6c5d0b62a1bce9665a2201';
+export const CONTRACT_ADDRESS = '0x8f0a4be503273ead1bee02dbc1179efaa880c41cbf7065eec64128d82301cec6';
+export const PACKAGE_ID = '0x8f0a4be503273ead1bee02dbc1179efaa880c41cbf7065eec64128d82301cec6';
 
 // Event object type
 export interface Event {

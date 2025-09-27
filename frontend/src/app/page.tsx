@@ -58,9 +58,9 @@ export default function Home() {
                         Create Event
                       </Button>
                     </Link>
-                    <Link href="/events">
+                    <Link href="/my-events">
                       <Button variant="outline" className="w-full">
-                        View Events
+                        My Events
                       </Button>
                     </Link>
                     <Link href="/test">
@@ -86,9 +86,9 @@ export default function Home() {
                         Browse Events
                       </Button>
                     </Link>
-                    <Link href="/my-events">
+                    <Link href="/my-participations">
                       <Button variant="outline" className="w-full">
-                        My Events
+                        My Participations
                       </Button>
                     </Link>
                   </div>

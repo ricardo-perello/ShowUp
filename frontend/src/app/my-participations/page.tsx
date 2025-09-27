@@ -4,39 +4,32 @@ import { useState, useEffect } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
-import { Calendar, ArrowLeft, Users, Clock, Coins, CheckCircle, QrCode, BarChart3, Settings, Eye } from 'lucide-react';
+import { Calendar, ArrowLeft, Users, Clock, Coins, QrCode, CheckCircle, X } from 'lucide-react';
 import Link from 'next/link';
-import { Event, EventObject } from '@/lib/sui';
+import { EventObject } from '@/lib/sui';
 import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 
-export default function MyEventsPage() {
+export default function MyParticipationsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const { getAllEventsGlobal, loading: transactionLoading, error } = useShowUpTransactions();
+  const { getAllEventsGlobal, joinEvent, loading: transactionLoading, error } = useShowUpTransactions();
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchMyEvents = async () => {
-    if (!account) {
-      setIsLoading(false);
-      return;
-    }
-
+  const fetchMyParticipations = async () => {
+    if (!account) return;
+    
     setIsLoading(true);
     
     try {
-      // Get all events and filter for ones where user is organizer
       const allEvents = await getAllEventsGlobal();
-      
-      // Filter events where user is the organizer
-      const myEvents = allEvents.filter(event => 
-        event.organizer.toLowerCase() === account.address.toLowerCase()
+      // Filter events where user is a participant
+      const myParticipations = allEvents.filter(event => 
+        Array.isArray(event.participants) && event.participants.includes(account.address)
       );
-      
-      setEvents(myEvents);
+      setEvents(myParticipations);
     } catch (error) {
-      console.error('Error fetching my events:', error);
-      // Fallback to empty array on error
+      console.error('Error fetching my participations:', error);
       setEvents([]);
     } finally {
       setIsLoading(false);
@@ -44,7 +37,7 @@ export default function MyEventsPage() {
   };
 
   useEffect(() => {
-    fetchMyEvents();
+    fetchMyParticipations();
   }, [account, getAllEventsGlobal]);
 
   const formatSUI = (mist: string) => {
@@ -71,28 +64,28 @@ export default function MyEventsPage() {
     return 'unknown';
   };
 
-  const getParticipantCount = (event: EventObject) => {
-    return Array.isArray(event.participants) ? event.participants.length : 0;
+  const isAttendee = (event: EventObject) => {
+    return Array.isArray(event.attendees) && event.attendees.includes(account?.address || '');
   };
 
-  const getAttendeeCount = (event: EventObject) => {
-    return Array.isArray(event.attendees) ? event.attendees.length : 0;
+  const hasClaimed = (event: EventObject) => {
+    return Array.isArray(event.claimed) && event.claimed.includes(account?.address || '');
   };
 
-  const getAttendanceRate = (event: EventObject) => {
-    const participants = getParticipantCount(event);
-    const attendees = getAttendeeCount(event);
-    return participants > 0 ? Math.round((attendees / participants) * 100) : 0;
+  const generateQRData = (event: EventObject) => {
+    return JSON.stringify({
+      event_id: event.id,
+      address: account?.address,
+      timestamp: Date.now(),
+    });
   };
-
-
 
   if (!account) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Connect Wallet Required</h1>
-          <p className="text-gray-600 mb-6">Please connect your wallet to view your events</p>
+          <p className="text-gray-600 mb-6">Please connect your wallet to view your participations</p>
           <WalletButton />
         </div>
       </div>
@@ -109,15 +102,12 @@ export default function MyEventsPage() {
               <Link href="/" className="mr-4">
                 <ArrowLeft className="h-6 w-6 text-gray-600 hover:text-gray-900" />
               </Link>
-              <Calendar className="h-8 w-8 text-blue-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">My Events (Organizer)</h1>
+              <Calendar className="h-8 w-8 text-green-600 mr-3" />
+              <h1 className="text-2xl font-bold text-gray-900">My Participations</h1>
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/events">
                 <Button variant="outline">Browse Events</Button>
-              </Link>
-              <Link href="/create">
-                <Button>Create Event</Button>
               </Link>
               <WalletButton />
             </div>
@@ -125,36 +115,36 @@ export default function MyEventsPage() {
         </div>
       </header>
 
-      {/* Events List */}
+      {/* Participations List */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {isLoading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading your events...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading your participations...</p>
           </div>
         ) : events.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Events Created</h2>
-            <p className="text-gray-600 mb-6">You haven't created any events yet. Create your first event to get started!</p>
-            <Link href="/create">
-              <Button>Create Event</Button>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Participations Yet</h2>
+            <p className="text-gray-600 mb-6">You haven't joined any events yet. Browse events to get started!</p>
+            <Link href="/events">
+              <Button>Browse Events</Button>
             </Link>
           </div>
         ) : (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-900">
-                {events.length} Event{events.length !== 1 ? 's' : ''} Created
+                {events.length} Event{events.length !== 1 ? 's' : ''} Joined
               </h2>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => {
                 const status = getEventStatus(event);
-                const participantCount = getParticipantCount(event);
-                const attendeeCount = getAttendeeCount(event);
-                const attendanceRate = getAttendanceRate(event);
+                const isAttended = isAttendee(event);
+                const hasClaimedReward = hasClaimed(event);
+                const qrData = generateQRData(event);
 
                 return (
                   <div key={event.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -168,7 +158,7 @@ export default function MyEventsPage() {
                         </div>
                         <div className="flex items-center text-sm text-gray-500 mb-2">
                           <Users className="h-4 w-4 mr-1" />
-                          {participantCount}/{event.capacity} participants
+                          {event.capacity} max participants
                         </div>
                         <div className="flex items-center text-sm text-gray-500">
                           <Coins className="h-4 w-4 mr-1" />
@@ -191,43 +181,52 @@ export default function MyEventsPage() {
                       </span>
                     </div>
 
-                    {/* Stats */}
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <div className="text-gray-500">Participants</div>
-                          <div className="font-semibold text-gray-900">{participantCount}</div>
+                    {/* QR Code Section */}
+                    {status === 'upcoming' || status === 'ongoing' ? (
+                      <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium text-gray-900">Your QR Code</h4>
+                          <QrCode className="h-4 w-4 text-gray-500" />
                         </div>
-                        <div>
-                          <div className="text-gray-500">Attendees</div>
-                          <div className="font-semibold text-gray-900">{attendeeCount}</div>
+                        <div className="text-xs text-gray-600 break-all">
+                          {qrData}
                         </div>
-                        <div>
-                          <div className="text-gray-500">Attendance Rate</div>
-                          <div className="font-semibold text-gray-900">{attendanceRate}%</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Vault</div>
-                          <div className="font-semibold text-gray-900">{formatSUI(event.vault)} SUI</div>
-                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Show this to the organizer for check-in
+                        </p>
                       </div>
-                    </div>
+                    ) : null}
+
+                    {/* Attendance Status */}
+                    {status === 'ended' && (
+                      <div className="mb-4">
+                        {isAttended ? (
+                          <div className="flex items-center text-green-600">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            <span className="text-sm font-medium">Attended</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center text-red-600">
+                            <X className="h-4 w-4 mr-1" />
+                            <span className="text-sm font-medium">Not Attended</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Action Buttons */}
                     <div className="space-y-2">
                       <Link href={`/events/${event.id}`} className="block">
                         <Button variant="outline" className="w-full">
-                          <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </Button>
                       </Link>
                       
-                      <Link href={`/checkin/${event.id}`} className="block">
+                      {status === 'ended' && isAttended && !hasClaimedReward && (
                         <Button className="w-full bg-green-600 hover:bg-green-700">
-                          <QrCode className="h-4 w-4 mr-2" />
-                          Check-in Participants
+                          Claim Rewards
                         </Button>
-                      </Link>
+                      )}
                     </div>
                   </div>
                 );
