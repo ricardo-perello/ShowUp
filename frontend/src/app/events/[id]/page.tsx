@@ -125,7 +125,7 @@ export default function EventDetailsPage() {
 
       // Use the first suitable coin
       const result = await joinEvent(eventId);
-      alert(`Successfully joined event! Transaction: ${result.transactionId}`);
+      alert(`Successfully joined event! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -143,7 +143,7 @@ export default function EventDetailsPage() {
     setIsClaiming(true);
     try {
       const result = await claim(eventId) as { transactionId: string; message: string };
-      alert(`Successfully claimed rewards! Transaction: ${result.transactionId}`);
+      alert(`Successfully claimed rewards! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -161,7 +161,7 @@ export default function EventDetailsPage() {
     setIsRefunding(true);
     try {
       const result = await refund(eventId) as { transactionId: string; message: string };
-      alert(`Successfully refunded! Transaction: ${result.transactionId}`);
+      alert(`Successfully refunded! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -180,7 +180,7 @@ export default function EventDetailsPage() {
     setIsRequesting(true);
     try {
       const result = await requestToJoin(eventId);
-      alert(`Request submitted! Transaction: ${result.transactionId}`);
+      alert(`Request submitted! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -199,7 +199,7 @@ export default function EventDetailsPage() {
     setIsMarkingAttendance(true);
     try {
       const result = await acceptRequests(eventId, selectedParticipants);
-      alert(`Requests accepted! Transaction: ${result.transactionId}`);
+      alert(`Requests accepted! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -218,7 +218,7 @@ export default function EventDetailsPage() {
     setIsMarkingAttendance(true);
     try {
       const result = await rejectRequests(eventId, selectedParticipants);
-      alert(`Requests rejected! Transaction: ${result.transactionId}`);
+      alert(`Requests rejected! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -237,7 +237,7 @@ export default function EventDetailsPage() {
     setIsWithdrawing(true);
     try {
       const result = await withdrawFromEvent(eventId);
-      alert(`Withdrawn from event! Transaction: ${result.transactionId}`);
+      alert(`Withdrawn from event! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -256,7 +256,7 @@ export default function EventDetailsPage() {
     setIsClaimingPending(true);
     try {
       const result = await claimPendingStake(eventId);
-      alert(`Pending stake claimed! Transaction: ${result.transactionId}`);
+      alert(`Pending stake claimed! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -275,7 +275,7 @@ export default function EventDetailsPage() {
     setIsMarkingAttendance(true);
     try {
       const result = await markAttendance(eventId, selectedParticipants);
-      alert(`Attendance marked! Transaction: ${result.transactionId}`);
+      alert(`Attendance marked! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Refresh event data
       window.location.reload();
@@ -595,6 +595,14 @@ export default function EventDetailsPage() {
               {/* Organizer buttons */}
               {isOrganizer && (
                 <>
+                  {/* Dashboard button */}
+                  <Link href={`/events/${eventId}/dashboard`}>
+                    <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                      <Users className="h-4 w-4 mr-2" />
+                      Organizer Dashboard
+                    </Button>
+                  </Link>
+                  
                   {/* Mark Attendance button - only show if event hasn't ended */}
                   {eventStatus !== 'ended' && (
                     <Link href={`/checkin/${eventId}`}>

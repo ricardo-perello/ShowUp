@@ -326,6 +326,111 @@ export class TransactionExecutor {
 
     return tx;
   }
+
+  // Batch operations for organizer dashboard
+  createMarkAttendanceTransaction(eventId: string, participants: string[]) {
+    console.log('🔧 Creating mark attendance transaction for participants:', participants);
+    
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::mark_attended`,
+      arguments: [
+        tx.object(eventId),
+        tx.pure.vector('address', participants),
+      ],
+    });
+    
+    tx.setGasBudget(100000000);
+    console.log('⛽ Gas budget set to:', 100000000, 'MIST (0.1 SUI)');
+    return tx;
+  }
+
+  createAcceptRequestsTransaction(eventId: string, participants: string[]) {
+    console.log('🔧 Creating accept requests transaction for participants:', participants);
+    
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::accept_requests`,
+      arguments: [
+        tx.object(eventId),
+        tx.pure.vector('address', participants),
+      ],
+    });
+    
+    tx.setGasBudget(100000000);
+    console.log('⛽ Gas budget set to:', 100000000, 'MIST (0.1 SUI)');
+    return tx;
+  }
+
+  createRejectRequestsTransaction(eventId: string, participants: string[]) {
+    console.log('🔧 Creating reject requests transaction for participants:', participants);
+    
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::reject_requests`,
+      arguments: [
+        tx.object(eventId),
+        tx.pure.vector('address', participants),
+      ],
+    });
+    
+    tx.setGasBudget(100000000);
+    console.log('⛽ Gas budget set to:', 100000000, 'MIST (0.1 SUI)');
+    return tx;
+  }
+
+  // Create private mock event for testing request workflow
+  createPrivateMockEventTransaction(participantFundAmount: number, pendingFundAmount: number) {
+    console.log('🔧 Creating private mock event transaction');
+    console.log('💰 Participant fund amount:', participantFundAmount, 'MIST');
+    console.log('💰 Pending fund amount:', pendingFundAmount, 'MIST');
+    
+    const tx = new Transaction();
+    
+    // Split coin for participants (2 participants = 2 SUI total)
+    const participantFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(participantFundAmount * 2)]); // 2 SUI total
+    
+    // Split coin for pending requests (1 request = 1 SUI)
+    const pendingFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(pendingFundAmount)]); // 1 SUI
+    
+    // Create the private mock event
+    tx.moveCall({
+      target: `${this.packageId}::showup::create_mock_event`,
+      arguments: [
+        tx.pure.string("Private Test Event"),
+        tx.pure.string("Testing private event with request workflow"),
+        tx.pure.string("Test Location"),
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 7 * 60), // start_time
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 1 * 60), // registration_start_time
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 6 * 60), // registration_end_time
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 8 * 60), // end_time
+        tx.pure.u64(1000000000), // stake_amount
+        tx.pure.u64(3), // capacity
+        tx.pure.bool(true), // must_request_to_join
+        tx.pure.vector('address', [
+          '0x1111111111111111111111111111111111111111111111111111111111111111',
+          '0x2222222222222222222222222222222222222222222222222222222222222222'
+        ]), // participants
+        tx.pure.vector('address', [
+          '0x1111111111111111111111111111111111111111111111111111111111111111'
+        ]), // attendees
+        tx.pure.vector('address', [
+          '0x3333333333333333333333333333333333333333333333333333333333333333'
+        ]), // pending
+        participantFundCoin, // participant_fund (2 SUI total)
+        pendingFundCoin, // pending_fund (1 SUI)
+      ],
+    });
+
+    // Set gas budget
+    tx.setGasBudget(100000000); // 0.1 SUI in MIST
+    console.log('⛽ Gas budget set to:', 100000000, 'MIST (0.1 SUI)');
+
+    return tx;
+  }
 }
 
 // Create executor instance

@@ -245,15 +245,12 @@ export function useShowUpTransactions() {
 
       console.log('📝 Join event transaction created, executing...');
 
-      // Execute the transaction
-      signAndExecuteTransaction({
+      // Execute the transaction and return the result
+      const result = await signAndExecuteTransaction({
         transaction: tx,
       });
 
-      return {
-        transactionId: 'pending',
-        message: 'Transaction submitted! Check your wallet for confirmation.',
-      };
+      return result;
     } catch (err) {
       handleError(err);
       throw err;
@@ -263,7 +260,7 @@ export function useShowUpTransactions() {
   }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
 
   // Mark attendance (updated to handle multiple participants)
-  const markAttendance = useCallback(async (eventId: string, participants: string[]) => {
+  const markAttendance = useCallback(async (eventId: string, participants: string[]): Promise<{ transactionId: string; [key: string]: unknown }> => {
     if (!account) throw new Error('Wallet not connected');
     
     setLoading(true);
@@ -272,15 +269,24 @@ export function useShowUpTransactions() {
     try {
       const tx = transactionExecutor.markAttendedTransaction(eventId, participants);
 
-      // Execute the transaction
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Mark attendance transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              ...result
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Mark attendance transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Transaction submitted! Check your wallet for confirmation.',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -642,14 +648,24 @@ export function useShowUpTransactions() {
 
       tx.setGasBudget(100000000);
 
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Request to join transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Request to join submitted! Wait for organizer approval.',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Request to join transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Request to join submitted! Wait for organizer approval.',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -668,14 +684,24 @@ export function useShowUpTransactions() {
     try {
       const tx = transactionExecutor.acceptRequestsTransaction(eventId, participants);
       
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Accept requests transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Requests accepted successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Accept requests transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Requests accepted successfully!',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -694,14 +720,24 @@ export function useShowUpTransactions() {
     try {
       const tx = transactionExecutor.rejectRequestsTransaction(eventId, participants);
       
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Reject requests transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Requests rejected successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Reject requests transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Requests rejected successfully!',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -893,6 +929,101 @@ export function useShowUpTransactions() {
     }
   }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
 
+  // Create private mock event for testing request workflow
+  const createPrivateMockEvent = useCallback(async () => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('🎯 Creating private mock event...');
+      
+      // Check SUI balance
+      const requiredAmount = 3 * 1000000000; // 3 SUI total (2 participants + 1 pending)
+      
+      // Get actual coin data to check balance
+      const coins = await suiClient.getCoins({
+        owner: account.address,
+        coinType: '0x2::sui::SUI',
+      });
+      
+      if (!coins.data || coins.data.length === 0) {
+        throw new Error('No SUI coins found. Please ensure you have SUI in your wallet.');
+      }
+      
+      const totalBalance = coins.data.reduce((sum, coin) => sum + parseInt(coin.balance), 0);
+      
+      if (totalBalance < requiredAmount) {
+        throw new Error(`Insufficient SUI balance. Required: ${requiredAmount / 1000000000} SUI, Available: ${totalBalance / 1000000000} SUI`);
+      }
+      
+      console.log('💰 SUI balance check passed:', totalBalance / 1000000000, 'SUI');
+      
+      // Create transaction
+      const tx = transactionExecutor.createPrivateMockEventTransaction(
+        1000000000, // 1 SUI per participant
+        1000000000  // 1 SUI for pending request
+      );
+      
+      console.log('📝 Transaction created, executing...');
+      console.log('🔍 Transaction details:', {
+        packageId: transactionExecutor.packageId,
+        target: `${transactionExecutor.packageId}::showup::create_mock_event`
+      });
+      
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        console.log('🚀 Calling signAndExecuteTransaction...');
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Create private mock event transaction result:', result);
+            console.log('🔍 Result effects:', result.effects);
+            console.log('🔍 Result digest:', result.digest);
+            
+            // Extract event ID from the transaction result
+            let eventId = 'pending';
+            if (result.effects && typeof result.effects === 'object' && 'created' in result.effects) {
+              // Find the Event object in created objects
+              const createdObjects = (result.effects as Record<string, unknown>).created;
+              console.log('🔍 Created objects:', createdObjects);
+              if (Array.isArray(createdObjects)) {
+                for (const obj of createdObjects) {
+                  if (obj.reference && obj.reference.objectId) {
+                    // This is likely the Event object
+                    eventId = (obj.reference as { objectId: string }).objectId;
+                    console.log('🎯 Found event ID:', eventId);
+                    break;
+                  }
+                }
+              }
+            }
+            
+            console.log('🎉 Private mock event created successfully! Event ID:', eventId);
+            resolve({
+              eventId,
+              transactionId: result.digest,
+              message: 'Private mock event created successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Create private mock event transaction failed:', error);
+            console.error('❌ Error details:', JSON.stringify(error, null, 2));
+            reject(error);
+          }
+        });
+      });
+    } catch (err) {
+      console.error('💥 Create private mock event error:', err);
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
+
   return {
     // State
     loading,
@@ -901,6 +1032,7 @@ export function useShowUpTransactions() {
     // Actions
     createEvent,
     createFundedMockEvent, // NEW
+    createPrivateMockEvent, // NEW
     joinEvent,
     requestToJoin, // NEW
     acceptRequests, // NEW
@@ -924,6 +1056,8 @@ export function useShowUpTransactions() {
     getEventRequestedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_REQUESTED, limit),
     getEventAttendedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_ATTENDED, limit),
     getEventClaimedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_CLAIMED, limit),
+    
+    // Batch operations for organizer dashboard
     
     // Utils
     clearError,

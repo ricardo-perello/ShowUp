@@ -431,8 +431,7 @@ module showup::showup {
         // Check capacity (0 means unlimited)
         if (event.capacity > 0) {
             let current_participants = vec_map::length(&event.participants);
-            let pending_requests = vec_map::length(&event.pending_requests);
-            assert!(current_participants + pending_requests < event.capacity, E_CAPACITY_EXCEEDED);
+            assert!(current_participants < event.capacity, E_CAPACITY_EXCEEDED);
         };
 
         // Deposit coins into pending vault

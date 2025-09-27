@@ -30,7 +30,7 @@ export default function SimpleEventDetailsPage() {
     setIsJoining(true);
     try {
       const result = await joinEvent(eventId);
-      alert(`Successfully joined event! Transaction: ${result.transactionId}`);
+      alert(`Successfully joined event! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
     } catch (err) {
       console.error('Error joining event:', err);
       alert(`Failed to join event: ${err instanceof Error ? err.message : 'Unknown error'}`);

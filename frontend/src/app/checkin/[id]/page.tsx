@@ -85,7 +85,7 @@ export default function CheckinPage() {
       
       // Attendance marked successfully!
       console.log('Attendance marked:', result);
-      alert(`Attendance marked successfully! Transaction: ${result.transactionId}`);
+      alert(`Attendance marked successfully! Transaction: ${(result as { transactionId?: string })?.transactionId || 'pending'}`);
       
       // Add to scanned codes
       setScannedCodes(prev => [...prev, participantAddress]);

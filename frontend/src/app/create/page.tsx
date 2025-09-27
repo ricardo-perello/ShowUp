@@ -12,7 +12,7 @@ import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 export default function CreateEvent() {
   const account = useCurrentAccount();
   const router = useRouter();
-  const { createEvent, createFundedMockEvent, loading, error } = useShowUpTransactions();
+  const { createEvent, createFundedMockEvent, createPrivateMockEvent, loading, error } = useShowUpTransactions();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -122,6 +122,25 @@ export default function CreateEvent() {
       router.push(`/events/${eventResult.eventId}`);
     } catch (error) {
       console.error('Error creating funded mock event:', error);
+    }
+  };
+
+  const handleCreatePrivateMockEvent = async () => {
+    if (!account) return;
+
+    try {
+      console.log('Creating private mock event...');
+      const result = await createPrivateMockEvent();
+      
+      console.log('Private mock event created:', result);
+      const eventResult = result as { eventId: string; transactionId: string; message: string };
+      alert(`Private mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- Private event (must request to join)\n- Capacity: 3\n- 2 participants: 0x1...1, 0x2...2\n- 1 attendee: 0x1...1\n- 1 pending request: 0x3...3\n\nYou can now test the request workflow!`);
+      
+      // Navigate to the event page
+      router.push(`/events/${eventResult.eventId}`);
+    } catch (error) {
+      console.error('Error creating private mock event:', error);
+      alert(`Failed to create private mock event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -496,6 +515,14 @@ export default function CreateEvent() {
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   {loading ? 'Creating...' : 'Create Test Event (Funded)'}
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={handleCreatePrivateMockEvent}
+                  disabled={loading}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {loading ? 'Creating...' : 'Create Private Test Event'}
                 </Button>
               </div>
               <Button 
