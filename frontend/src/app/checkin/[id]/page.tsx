@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
@@ -21,6 +21,32 @@ export default function CheckinPage() {
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [markingAttendance, setMarkingAttendance] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  const handleMarkAttendance = useCallback(async (participantAddress: string) => {
+    if (markingAttendance === participantAddress) return; // Prevent double calls
+    
+    setMarkingAttendance(participantAddress);
+    try {
+      const result = await markAttendance(eventId, [participantAddress]);
+      
+      // Attendance marked successfully!
+      console.log('Attendance marked:', result);
+      alert(`Attendance marked successfully! Transaction: ${result.transactionId}`);
+      
+      // Add to scanned codes
+      setScannedCodes(prev => [...prev, participantAddress]);
+      
+      // Show success
+      setTimeout(() => {
+        setLastScanned(null);
+        setMarkingAttendance(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      alert(`Failed to mark attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setMarkingAttendance(null);
+    }
+  }, [markingAttendance, markAttendance, eventId]);
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -81,7 +107,7 @@ export default function CheckinPage() {
 
       return () => clearTimeout(timer);
     }
-  }, [isScanning, eventId, scannedCodes]);
+  }, [isScanning, eventId, scannedCodes, handleMarkAttendance]);
 
   // Cleanup scanner on unmount
   useEffect(() => {
@@ -99,32 +125,6 @@ export default function CheckinPage() {
       scannerRef.current = null;
     }
     setIsScanning(false);
-  };
-
-  const handleMarkAttendance = async (participantAddress: string) => {
-    if (markingAttendance === participantAddress) return; // Prevent double calls
-    
-    setMarkingAttendance(participantAddress);
-    try {
-      const result = await markAttendance(eventId, participantAddress);
-      
-      // Attendance marked successfully!
-      console.log('Attendance marked:', result);
-      alert(`Attendance marked successfully! Transaction: ${result.transactionId}`);
-      
-      // Add to scanned codes
-      setScannedCodes(prev => [...prev, participantAddress]);
-      
-      // Show success
-      setTimeout(() => {
-        setLastScanned(null);
-        setMarkingAttendance(null);
-      }, 2000);
-    } catch (error) {
-      console.error('Error marking attendance:', error);
-      alert(`Failed to mark attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setMarkingAttendance(null);
-    }
   };
 
   const clearScanned = () => {

@@ -29,7 +29,7 @@ export default function SimpleEventDetailsPage() {
 
     setIsJoining(true);
     try {
-      const result = await joinEvent(eventId, 'test-coin-id');
+      const result = await joinEvent(eventId);
       alert(`Successfully joined event! Transaction: ${result.transactionId}`);
     } catch (err) {
       console.error('Error joining event:', err);

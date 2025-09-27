@@ -1,27 +1,48 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
-import { Calendar, ArrowLeft, Users, Clock, Coins, UserPlus, Eye, CheckCircle } from 'lucide-react';
+import { Calendar, ArrowLeft, Users, Clock, Coins, UserPlus, Eye } from 'lucide-react';
 import Link from 'next/link';
-import { Event, EventObject } from '@/lib/sui';
+import { EventObject, isUserParticipant } from '@/lib/sui';
 import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 
 export default function EventsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const { getAllEventsGlobal, refreshGlobalEvents, joinEvent, loading: transactionLoading, error } = useShowUpTransactions();
+  const { getAllEventsGlobal, refreshGlobalEvents, joinEvent, requestToJoin, loading: transactionLoading } = useShowUpTransactions();
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [participantStatus, setParticipantStatus] = useState<Record<string, boolean>>({});
 
-  const fetchEvents = async () => {
+  const checkParticipantStatus = useCallback(async (eventId: string) => {
+    if (!account?.address || !suiClient) return false;
+    
+    try {
+      const isParticipant = await isUserParticipant(suiClient, eventId, account.address);
+      setParticipantStatus(prev => ({ ...prev, [eventId]: isParticipant }));
+      return isParticipant;
+    } catch (error) {
+      console.error('Error checking participant status:', error);
+      return false;
+    }
+  }, [account?.address, suiClient]);
+
+  const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     
     try {
       const fetchedEvents = await getAllEventsGlobal();
       setEvents(fetchedEvents);
+      
+      // Check participant status for each event
+      if (account?.address && suiClient) {
+        for (const event of fetchedEvents) {
+          checkParticipantStatus(event.id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching events:', error);
       // Fallback to empty array on error
@@ -29,19 +50,16 @@ export default function EventsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getAllEventsGlobal, account?.address, suiClient, checkParticipantStatus]);
 
   useEffect(() => {
     fetchEvents();
-  }, [getAllEventsGlobal]);
+  }, [getAllEventsGlobal, fetchEvents]);
 
   const formatSUI = (mist: string) => {
     return (parseInt(mist) / 1_000_000_000).toFixed(3);
   };
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(parseInt(timestamp) * 1000);
@@ -51,17 +69,18 @@ export default function EventsPage() {
   const getEventStatus = (event: EventObject) => {
     const now = Math.floor(Date.now() / 1000);
     const startTime = parseInt(event.startTime);
+    const registrationEndTime = parseInt(event.registrationEndTime);
     const endTime = parseInt(event.endTime);
     
-    
-    if (now < startTime) return 'upcoming';
+    if (now < registrationEndTime) return 'upcoming';
+    if (now >= registrationEndTime && now < startTime) return 'registration_closed';
     if (now >= startTime && now < endTime) return 'ongoing';
     if (now >= endTime) return 'ended';
     return 'unknown';
   };
 
   const isParticipant = (event: EventObject) => {
-    return Array.isArray(event.participants) && event.participants.includes(account?.address || '');
+    return participantStatus[event.id] || false;
   };
 
   const isOrganizer = (event: EventObject) => {
@@ -75,12 +94,39 @@ export default function EventsPage() {
     const participantCount = Array.isArray(event.participants) ? event.participants.length : 0;
     const isFull = participantCount >= parseInt(event.capacity);
     
-    // TEMPORARY FIX: Since participants array is empty due to table parsing issues,
-    // we'll allow joining if the user is not the organizer and the event is not ended
-    // TODO: Fix table parsing to get actual participant data
-    const canJoin = (status === 'upcoming' || status === 'ongoing') && !isOrganizerOfEvent;
+    // Can only join if:
+    // 1. Not already a participant
+    // 2. Not the organizer
+    // 3. Registration is still open (upcoming status)
+    // 4. Not at capacity
+    const canJoin = !isParticipantAlready && 
+                   !isOrganizerOfEvent && 
+                   status === 'upcoming' && 
+                   !isFull;
     
     return canJoin;
+  };
+
+  const canRequestToJoin = (event: EventObject) => {
+    const status = getEventStatus(event);
+    const isParticipantAlready = isParticipant(event);
+    const isOrganizerOfEvent = isOrganizer(event);
+    const participantCount = Array.isArray(event.participants) ? event.participants.length : 0;
+    const isFull = participantCount >= parseInt(event.capacity);
+    
+    // Can request to join if:
+    // 1. Event is private (mustRequestToJoin = true)
+    // 2. Not already a participant
+    // 3. Not the organizer
+    // 4. Registration is still open (upcoming status)
+    // 5. Not at capacity
+    const canRequest = event.mustRequestToJoin && 
+                      !isParticipantAlready && 
+                      !isOrganizerOfEvent && 
+                      status === 'upcoming' && 
+                      !isFull;
+    
+    return canRequest;
   };
 
   const handleJoinEvent = async (event: EventObject) => {
@@ -92,12 +138,33 @@ export default function EventsPage() {
       // joinEvent will handle all coin selection automatically
       await joinEvent(event.id);
       
+      // Check participant status for this specific event
+      await checkParticipantStatus(event.id);
+      
       // Refresh events after joining
       await fetchEvents();
     } catch (error) {
       console.error('Error joining event:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Failed to join event: ${errorMessage}`);
+    }
+  };
+
+  const handleRequestToJoin = async (event: EventObject) => {
+    if (!account) return;
+    
+    try {
+      console.log('📝 Requesting to join event:', event.name);
+      
+      // requestToJoin will handle all coin selection automatically
+      await requestToJoin(event.id);
+      
+      // Refresh events after requesting
+      await fetchEvents();
+    } catch (error) {
+      console.error('Error requesting to join event:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to request to join event: ${errorMessage}`);
     }
   };
 
@@ -176,11 +243,10 @@ export default function EventsPage() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => {
                 const status = getEventStatus(event);
-                const isParticipantAlready = isParticipant(event);
                 const isOrganizerOfEvent = isOrganizer(event);
                 const participantCount = Array.isArray(event.participants) ? event.participants.length : 0;
-                const isFull = participantCount >= parseInt(event.capacity);
                 const canJoin = canJoinEvent(event);
+                const canRequest = canRequestToJoin(event);
 
 
                 return (
@@ -191,15 +257,26 @@ export default function EventsPage() {
                         <p className="text-gray-600 text-sm mb-3">{event.description}</p>
                         <div className="flex items-center text-sm text-gray-500 mb-2">
                           <Clock className="h-4 w-4 mr-1" />
-                          {formatTimestamp(event.startTime)}
+                          Starts: {formatTimestamp(event.startTime)}
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500 mb-2">
+                          <Clock className="h-4 w-4 mr-1" />
+                          Registration closes: {formatTimestamp(event.registrationEndTime)}
                         </div>
                         <div className="flex items-center text-sm text-gray-500 mb-2">
                           <Users className="h-4 w-4 mr-1" />
                           {participantCount}/{event.capacity} participants
                         </div>
-                        <div className="flex items-center text-sm text-gray-500">
+                        <div className="flex items-center text-sm text-gray-500 mb-2">
                           <Coins className="h-4 w-4 mr-1" />
                           {formatSUI(event.stakeAmount)} SUI stake
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            event.mustRequestToJoin ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
+                          }`}>
+                            {event.mustRequestToJoin ? 'Private Event' : 'Public Event'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -208,11 +285,13 @@ export default function EventsPage() {
                     <div className="mb-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                        status === 'registration_closed' ? 'bg-orange-100 text-orange-800' :
                         status === 'ongoing' ? 'bg-green-100 text-green-800' :
                         status === 'ended' ? 'bg-gray-100 text-gray-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {status === 'upcoming' ? 'Upcoming' :
+                        {status === 'upcoming' ? 'Registration Open' :
+                         status === 'registration_closed' ? 'Registration Closed' :
                          status === 'ongoing' ? 'Ongoing' :
                          status === 'ended' ? 'Ended' : 'Unknown'}
                       </span>
@@ -236,10 +315,24 @@ export default function EventsPage() {
                           <UserPlus className="h-4 w-4 mr-2" />
                           {transactionLoading ? 'Joining...' : 'Join Event'}
                         </Button>
+                      ) : canRequest ? (
+                        <Button 
+                          onClick={() => handleRequestToJoin(event)}
+                          className="w-full bg-purple-600 hover:bg-purple-700"
+                          disabled={transactionLoading}
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          {transactionLoading ? 'Requesting...' : 'Request to Join'}
+                        </Button>
                       ) : isOrganizerOfEvent ? (
                         <Button variant="outline" className="w-full" disabled>
                           <Users className="h-4 w-4 mr-2" />
                           Your Event
+                        </Button>
+                      ) : status === 'registration_closed' ? (
+                        <Button variant="outline" className="w-full" disabled>
+                          <Clock className="h-4 w-4 mr-2" />
+                          Registration Closed
                         </Button>
                       ) : status === 'ended' ? (
                         <Button variant="outline" className="w-full" disabled>

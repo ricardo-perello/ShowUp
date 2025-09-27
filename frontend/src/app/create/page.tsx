@@ -21,6 +21,8 @@ export default function CreateEvent() {
     stakeAmount: '',
     capacity: '',
     durationHours: '2', // Default 2 hours
+    registrationEndHours: '1', // NEW: Default 1 hour before event starts
+    mustRequestToJoin: false, // NEW: Default to public event
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +37,8 @@ export default function CreateEvent() {
         stakeAmount: parseFloat(formData.stakeAmount),
         capacity: parseInt(formData.capacity) || 0, // 0 means unlimited
         durationHours: parseFloat(formData.durationHours),
+        registrationEndHours: parseFloat(formData.registrationEndHours), // NEW
+        mustRequestToJoin: formData.mustRequestToJoin, // NEW
       });
 
       // Event created successfully!
@@ -193,6 +197,62 @@ export default function CreateEvent() {
               </p>
             </div>
 
+            <div>
+              <label htmlFor="registrationEndHours" className="block text-sm font-medium text-gray-700 mb-2">
+                Registration Deadline (Hours Before Event)
+              </label>
+              <input
+                type="number"
+                id="registrationEndHours"
+                value={formData.registrationEndHours}
+                onChange={(e) => setFormData({ ...formData, registrationEndHours: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter hours before event when registration closes"
+                required
+                min="0.1"
+                step="0.1"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                When participants can no longer join or request to join (e.g., 1 hour before event starts)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Event Type
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="eventType"
+                    value="public"
+                    checked={!formData.mustRequestToJoin}
+                    onChange={() => setFormData({ ...formData, mustRequestToJoin: false })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Public Event - Anyone can join directly</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="eventType"
+                    value="private"
+                    checked={formData.mustRequestToJoin}
+                    onChange={() => setFormData({ ...formData, mustRequestToJoin: true })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Private Event - Requires organizer approval</span>
+                </label>
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                {formData.mustRequestToJoin 
+                  ? "Participants must request to join and wait for your approval"
+                  : "Participants can join directly without approval"
+                }
+              </p>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-sm font-medium text-blue-900 mb-2">Event Details</h3>
               <ul className="text-sm text-blue-800 space-y-1">
@@ -201,6 +261,8 @@ export default function CreateEvent() {
                 <li>• Stake: {formData.stakeAmount || 'X'} SUI per participant</li>
                 <li>• Capacity: {formData.capacity || 'Unlimited'} participants</li>
                 <li>• Duration: {formData.durationHours || 'X'} hours</li>
+                <li>• Registration closes: {formData.registrationEndHours || 'X'} hours before event</li>
+                <li>• Type: {formData.mustRequestToJoin ? 'Private (requires approval)' : 'Public (direct join)'}</li>
                 <li>• You can scan QR codes to mark attendance</li>
                 <li>• Attendees will share no-show penalties equally</li>
               </ul>
@@ -214,7 +276,7 @@ export default function CreateEvent() {
               </Link>
               <Button 
                 type="submit" 
-                disabled={loading || !formData.name || !formData.description || !formData.location || !formData.stakeAmount || !formData.durationHours}
+                disabled={loading || !formData.name || !formData.description || !formData.location || !formData.stakeAmount || !formData.durationHours || !formData.registrationEndHours}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {loading ? 'Creating...' : 'Create Event'}

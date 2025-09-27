@@ -11,9 +11,11 @@ export class TransactionExecutor {
     description: string;
     location: string;
     startTime: number;
+    registrationEndTime: number; // NEW
     endTime: number;
     stakeAmount: number; // in SUI
     capacity: number;
+    mustRequestToJoin: boolean; // NEW
   }) {
     console.log('🔧 Creating event transaction with params:', params);
     console.log('📦 Package ID:', this.packageId);
@@ -27,9 +29,11 @@ export class TransactionExecutor {
         tx.pure.string(params.description),
         tx.pure.string(params.location),
         tx.pure.u64(params.startTime),
+        tx.pure.u64(params.registrationEndTime), // NEW
         tx.pure.u64(params.endTime),
         tx.pure.u64(Math.floor(params.stakeAmount * 1_000_000_000)), // Convert to MIST
         tx.pure.u64(params.capacity),
+        tx.pure.bool(params.mustRequestToJoin), // NEW
       ],
     });
 
@@ -58,15 +62,15 @@ export class TransactionExecutor {
     return tx;
   }
 
-  // Mark attendance transaction
-  markAttendedTransaction(eventId: string, participantAddress: string) {
+  // Mark attendance transaction (updated to handle multiple participants)
+  markAttendedTransaction(eventId: string, participants: string[]) {
     const tx = new Transaction();
     
     tx.moveCall({
       target: `${this.packageId}::showup::mark_attended`,
       arguments: [
         tx.object(eventId),
-        tx.pure.address(participantAddress),
+        tx.pure.vector('address', participants),
       ],
     });
 
@@ -145,6 +149,84 @@ export class TransactionExecutor {
   // Helper function to create event end time
   createEndTime(hoursFromNow: number): number {
     return this.getCurrentEpoch() + (hoursFromNow * 3600);
+  }
+
+  // NEW: Request to join private event transaction
+  requestToJoinTransaction(eventId: string, stakeCoinId: string) {
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::request_to_join`,
+      arguments: [
+        tx.object(eventId),
+        tx.object(stakeCoinId),
+      ],
+    });
+
+    tx.setGasBudget(100000000);
+    return tx;
+  }
+
+  // NEW: Accept requests transaction (organizer only)
+  acceptRequestsTransaction(eventId: string, participants: string[]) {
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::accept_requests`,
+      arguments: [
+        tx.object(eventId),
+        tx.pure.vector('address', participants),
+      ],
+    });
+
+    tx.setGasBudget(100000000);
+    return tx;
+  }
+
+  // NEW: Reject requests transaction (organizer only)
+  rejectRequestsTransaction(eventId: string, participants: string[]) {
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::reject_requests`,
+      arguments: [
+        tx.object(eventId),
+        tx.pure.vector('address', participants),
+      ],
+    });
+
+    tx.setGasBudget(100000000);
+    return tx;
+  }
+
+  // NEW: Withdraw from event transaction
+  withdrawFromEventTransaction(eventId: string) {
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::withdraw_from_event`,
+      arguments: [
+        tx.object(eventId),
+      ],
+    });
+
+    tx.setGasBudget(100000000);
+    return tx;
+  }
+
+  // NEW: Claim pending stake transaction
+  claimPendingStakeTransaction(eventId: string) {
+    const tx = new Transaction();
+    
+    tx.moveCall({
+      target: `${this.packageId}::showup::claim_pending_stake`,
+      arguments: [
+        tx.object(eventId),
+      ],
+    });
+
+    tx.setGasBudget(100000000);
+    return tx;
   }
 }
 

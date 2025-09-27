@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
@@ -16,7 +16,7 @@ export default function MyEventsPage() {
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchMyEvents = async () => {
+  const fetchMyEvents = useCallback(async () => {
     if (!account) {
       setIsLoading(false);
       return;
@@ -41,11 +41,11 @@ export default function MyEventsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [account, getAllEventsGlobal]);
 
   useEffect(() => {
     fetchMyEvents();
-  }, [account, getAllEventsGlobal]);
+  }, [account, getAllEventsGlobal, fetchMyEvents]);
 
   const formatSUI = (mist: string) => {
     return (parseInt(mist) / 1_000_000_000).toFixed(3);
@@ -136,7 +136,7 @@ export default function MyEventsPage() {
           <div className="text-center py-12">
             <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">No Events Created</h2>
-            <p className="text-gray-600 mb-6">You haven't created any events yet. Create your first event to get started!</p>
+            <p className="text-gray-600 mb-6">You haven&apos;t created any events yet. Create your first event to get started!</p>
             <Link href="/create">
               <Button>Create Event</Button>
             </Link>
@@ -208,7 +208,7 @@ export default function MyEventsPage() {
                         </div>
                         <div>
                           <div className="text-gray-500">Vault</div>
-                          <div className="font-semibold text-gray-900">{formatSUI(event.vault)} SUI</div>
+                          <div className="font-semibold text-gray-900">{formatSUI(event.participantVault)} SUI</div>
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
@@ -16,7 +16,7 @@ export default function MyParticipationsPage() {
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchMyParticipations = async () => {
+  const fetchMyParticipations = useCallback(async () => {
     if (!account) return;
     
     setIsLoading(true);
@@ -34,11 +34,11 @@ export default function MyParticipationsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [account, getAllEventsGlobal]);
 
   useEffect(() => {
     fetchMyParticipations();
-  }, [account, getAllEventsGlobal]);
+  }, [account, getAllEventsGlobal, fetchMyParticipations]);
 
   const formatSUI = (mist: string) => {
     return (parseInt(mist) / 1_000_000_000).toFixed(3);
@@ -126,7 +126,7 @@ export default function MyParticipationsPage() {
           <div className="text-center py-12">
             <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">No Participations Yet</h2>
-            <p className="text-gray-600 mb-6">You haven't joined any events yet. Browse events to get started!</p>
+            <p className="text-gray-600 mb-6">You haven&apos;t joined any events yet. Browse events to get started!</p>
             <Link href="/events">
               <Button>Browse Events</Button>
             </Link>

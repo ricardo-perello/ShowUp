@@ -42,6 +42,8 @@ export function useShowUpTransactions() {
     stakeAmount: number;
     capacity: number;
     durationHours: number;
+    registrationEndHours: number; // NEW: Hours before event starts when registration ends
+    mustRequestToJoin: boolean; // NEW: Public vs private event
   }) => {
     console.log('🚀 Starting createEvent with params:', params);
     console.log('👤 Account:', account?.address);
@@ -61,18 +63,28 @@ export function useShowUpTransactions() {
       console.log('✅ Gas coins available:', gasCoins.length);
 
       const startTime = transactionExecutor.getCurrentEpoch();
+      const registrationEndTime = startTime + (params.registrationEndHours * 3600);
       const endTime = transactionExecutor.createEndTime(params.durationHours);
       
-      console.log('⏰ Event timing:', { startTime, endTime, durationHours: params.durationHours });
+      console.log('⏰ Event timing:', { 
+        startTime, 
+        registrationEndTime, 
+        endTime, 
+        durationHours: params.durationHours,
+        registrationEndHours: params.registrationEndHours,
+        mustRequestToJoin: params.mustRequestToJoin
+      });
 
       const tx = transactionExecutor.createEventTransaction({
         name: params.name,
         description: params.description,
         location: params.location,
         startTime,
+        registrationEndTime, // NEW
         endTime,
         stakeAmount: params.stakeAmount,
         capacity: params.capacity,
+        mustRequestToJoin: params.mustRequestToJoin, // NEW
       });
 
       console.log('📝 Transaction created, executing...');
@@ -88,7 +100,7 @@ export function useShowUpTransactions() {
             let eventId = 'pending';
             if (result.effects && typeof result.effects === 'object' && 'created' in result.effects) {
               // Find the Event object in created objects
-              const createdObjects = (result.effects as any).created;
+              const createdObjects = (result.effects as Record<string, unknown>).created;
               if (Array.isArray(createdObjects)) {
                 for (const obj of createdObjects) {
                   if (obj.reference && obj.reference.objectId) {
@@ -184,8 +196,8 @@ export function useShowUpTransactions() {
         throw new Error('Event not found');
       }
 
-      const eventFields = eventData.data.content.fields as any;
-      const stakeAmount = parseInt(eventFields.stake_amount || '0');
+      const eventFields = eventData.data.content.fields as Record<string, unknown>;
+      const stakeAmount = parseInt(String(eventFields.stake_amount || '0'));
       const gasAmount = 100000000; // 0.1 SUI for gas
       const totalNeeded = stakeAmount + gasAmount;
 
@@ -239,15 +251,15 @@ export function useShowUpTransactions() {
     }
   }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
 
-  // Mark attendance
-  const markAttendance = useCallback(async (eventId: string, participantAddress: string) => {
+  // Mark attendance (updated to handle multiple participants)
+  const markAttendance = useCallback(async (eventId: string, participants: string[]) => {
     if (!account) throw new Error('Wallet not connected');
     
     setLoading(true);
     setError(null);
     
     try {
-      const tx = transactionExecutor.markAttendedTransaction(eventId, participantAddress);
+      const tx = transactionExecutor.markAttendedTransaction(eventId, participants);
 
       // Execute the transaction
       signAndExecuteTransaction({
@@ -396,7 +408,7 @@ export function useShowUpTransactions() {
         console.log('📄 Processing item:', item);
         if (item.data) {
           try {
-            const event = parseEventFromObject(item.data);
+            const event = parseEventFromObject(item.data as unknown as Record<string, unknown>);
             console.log('✅ Parsed event:', event);
             events.push(event);
           } catch (err) {
@@ -474,8 +486,8 @@ export function useShowUpTransactions() {
         });
       }
 
-      // Use cached event IDs if no new ones found
-      const eventIdsToFetch = eventIds.length > 0 ? eventIds : discoveredEventIds;
+      // Use new event IDs if found, otherwise use empty array (don't rely on state)
+      const eventIdsToFetch = eventIds.length > 0 ? eventIds : [];
       console.log('🎯 Event IDs to fetch:', eventIdsToFetch);
 
       // Method 2: If no events found via query, try alternative approaches
@@ -509,7 +521,7 @@ export function useShowUpTransactions() {
           });
 
           if (eventData.data) {
-            const event = parseEventFromObject(eventData.data);
+            const event = parseEventFromObject(eventData.data as unknown as Record<string, unknown>);
             console.log('✅ Parsed event:', event);
             events.push(event);
           }
@@ -533,6 +545,169 @@ export function useShowUpTransactions() {
     setDiscoveredEventIds([]); // Clear cache to force fresh query
   }, []);
 
+  // NEW: Request to join private event
+  const requestToJoin = useCallback(async (eventId: string) => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Get the event to check stake amount
+      const eventData = await suiClient.getObject({
+        id: eventId,
+        options: { showContent: true, showType: true }
+      });
+
+      if (!eventData.data?.content || !('fields' in eventData.data.content)) {
+        throw new Error('Event not found');
+      }
+
+      const eventFields = eventData.data.content.fields as Record<string, unknown>;
+      const stakeAmount = parseInt(String(eventFields.stake_amount || '0'));
+      const gasAmount = 100000000; // 0.1 SUI for gas
+      const totalNeeded = stakeAmount + gasAmount;
+
+      // Check if we have enough balance
+      const allCoins = await getUserSUICoins(totalNeeded);
+      if (allCoins.length === 0) {
+        throw new Error(`Insufficient SUI balance. You need at least ${totalNeeded / 1_000_000_000} SUI (${stakeAmount / 1_000_000_000} for stake + ${gasAmount / 1_000_000_000} for gas).`);
+      }
+
+      // Create transaction with proper coin splitting
+      const tx = new Transaction();
+      const [stakeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(stakeAmount)]);
+      
+      tx.moveCall({
+        target: `${PACKAGE_ID}::showup::request_to_join`,
+        arguments: [
+          tx.object(eventId),
+          stakeCoin,
+        ],
+      });
+
+      tx.setGasBudget(100000000);
+
+      signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      return {
+        transactionId: 'pending',
+        message: 'Request to join submitted! Wait for organizer approval.',
+      };
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError, suiClient, getUserSUICoins]);
+
+  // NEW: Accept requests (organizer only)
+  const acceptRequests = useCallback(async (eventId: string, participants: string[]) => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const tx = transactionExecutor.acceptRequestsTransaction(eventId, participants);
+      
+      signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      return {
+        transactionId: 'pending',
+        message: 'Requests accepted successfully!',
+      };
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError]);
+
+  // NEW: Reject requests (organizer only)
+  const rejectRequests = useCallback(async (eventId: string, participants: string[]) => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const tx = transactionExecutor.rejectRequestsTransaction(eventId, participants);
+      
+      signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      return {
+        transactionId: 'pending',
+        message: 'Requests rejected successfully!',
+      };
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError]);
+
+  // NEW: Withdraw from event
+  const withdrawFromEvent = useCallback(async (eventId: string) => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const tx = transactionExecutor.withdrawFromEventTransaction(eventId);
+      
+      signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      return {
+        transactionId: 'pending',
+        message: 'Withdrawn from event successfully!',
+      };
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError]);
+
+  // NEW: Claim pending stake
+  const claimPendingStake = useCallback(async (eventId: string) => {
+    if (!account) throw new Error('Wallet not connected');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const tx = transactionExecutor.claimPendingStakeTransaction(eventId);
+      
+      signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      return {
+        transactionId: 'pending',
+        message: 'Pending stake claimed successfully!',
+      };
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [account, signAndExecuteTransaction, handleError]);
+
   return {
     // State
     loading,
@@ -541,6 +716,11 @@ export function useShowUpTransactions() {
     // Actions
     createEvent,
     joinEvent,
+    requestToJoin, // NEW
+    acceptRequests, // NEW
+    rejectRequests, // NEW
+    withdrawFromEvent, // NEW
+    claimPendingStake, // NEW
     markAttendance,
     claim,
     refund,
