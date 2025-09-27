@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
 import { transactionExecutor } from '@/lib/transactionExecutor';
-import { PACKAGE_ID, getEventType, parseEventFromObject, EventObject } from '@/lib/sui';
+import { PACKAGE_ID, getEventType, parseEventFromObject, EventObject, queryNetworkEvents, EVENT_TYPES } from '@/lib/sui';
 
 export function useShowUpTransactions() {
   const account = useCurrentAccount();
@@ -42,7 +42,8 @@ export function useShowUpTransactions() {
     stakeAmount: number;
     capacity: number;
     durationHours: number;
-    registrationEndHours: number; // NEW: Hours before event starts when registration ends
+    registrationStartHours: number; // NEW: Hours before event starts when registration opens
+    registrationEndHours: number;   // NEW: Hours before event starts when registration ends
     mustRequestToJoin: boolean; // NEW: Public vs private event
   }) => {
     console.log('🚀 Starting createEvent with params:', params);
@@ -63,14 +64,17 @@ export function useShowUpTransactions() {
       console.log('✅ Gas coins available:', gasCoins.length);
 
       const startTime = transactionExecutor.getCurrentEpoch();
+      const registrationStartTime = startTime + (params.registrationStartHours * 3600);
       const registrationEndTime = startTime + (params.registrationEndHours * 3600);
       const endTime = transactionExecutor.createEndTime(params.durationHours);
       
       console.log('⏰ Event timing:', { 
         startTime, 
+        registrationStartTime,
         registrationEndTime, 
         endTime, 
         durationHours: params.durationHours,
+        registrationStartHours: params.registrationStartHours,
         registrationEndHours: params.registrationEndHours,
         mustRequestToJoin: params.mustRequestToJoin
       });
@@ -80,7 +84,8 @@ export function useShowUpTransactions() {
         description: params.description,
         location: params.location,
         startTime,
-        registrationEndTime, // NEW
+        registrationStartTime, // NEW: When registration opens
+        registrationEndTime,   // NEW: When registration closes
         endTime,
         stakeAmount: params.stakeAmount,
         capacity: params.capacity,
@@ -730,6 +735,14 @@ export function useShowUpTransactions() {
     getAllEvents,
     getAllEventsGlobal,
     refreshGlobalEvents,
+    
+    // Network Events
+    queryNetworkEvents: (eventType?: string, limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, eventType, limit),
+    getEventCreatedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_CREATED, limit),
+    getEventJoinedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_JOINED, limit),
+    getEventRequestedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_REQUESTED, limit),
+    getEventAttendedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_ATTENDED, limit),
+    getEventClaimedEvents: (limit?: number) => queryNetworkEvents(suiClient, PACKAGE_ID, EVENT_TYPES.EVENT_CLAIMED, limit),
     
     // Utils
     clearError,

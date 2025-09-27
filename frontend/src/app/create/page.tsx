@@ -21,7 +21,8 @@ export default function CreateEvent() {
     stakeAmount: '',
     capacity: '',
     durationHours: '2', // Default 2 hours
-    registrationEndHours: '1', // NEW: Default 1 hour before event starts
+    registrationStartHours: '0', // NEW: Default 0 hours (registration starts immediately)
+    registrationEndHours: '1',   // NEW: Default 1 hour before event starts
     mustRequestToJoin: false, // NEW: Default to public event
   });
 
@@ -37,7 +38,8 @@ export default function CreateEvent() {
         stakeAmount: parseFloat(formData.stakeAmount),
         capacity: parseInt(formData.capacity) || 0, // 0 means unlimited
         durationHours: parseFloat(formData.durationHours),
-        registrationEndHours: parseFloat(formData.registrationEndHours), // NEW
+        registrationStartHours: parseFloat(formData.registrationStartHours), // NEW
+        registrationEndHours: parseFloat(formData.registrationEndHours),     // NEW
         mustRequestToJoin: formData.mustRequestToJoin, // NEW
       });
 
@@ -198,6 +200,26 @@ export default function CreateEvent() {
             </div>
 
             <div>
+              <label htmlFor="registrationStartHours" className="block text-sm font-medium text-gray-700 mb-2">
+                Registration Start (Hours Before Event)
+              </label>
+              <input
+                type="number"
+                id="registrationStartHours"
+                value={formData.registrationStartHours}
+                onChange={(e) => setFormData({ ...formData, registrationStartHours: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter hours before event when registration opens"
+                required
+                min="0"
+                step="0.1"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                When participants can start joining or requesting to join (0 = immediately)
+              </p>
+            </div>
+
+            <div>
               <label htmlFor="registrationEndHours" className="block text-sm font-medium text-gray-700 mb-2">
                 Registration Deadline (Hours Before Event)
               </label>
@@ -261,6 +283,7 @@ export default function CreateEvent() {
                 <li>• Stake: {formData.stakeAmount || 'X'} SUI per participant</li>
                 <li>• Capacity: {formData.capacity || 'Unlimited'} participants</li>
                 <li>• Duration: {formData.durationHours || 'X'} hours</li>
+                <li>• Registration starts: {formData.registrationStartHours || 'X'} hours before event</li>
                 <li>• Registration closes: {formData.registrationEndHours || 'X'} hours before event</li>
                 <li>• Type: {formData.mustRequestToJoin ? 'Private (requires approval)' : 'Public (direct join)'}</li>
                 <li>• You can scan QR codes to mark attendance</li>

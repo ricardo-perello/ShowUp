@@ -11,7 +11,8 @@ export class TransactionExecutor {
     description: string;
     location: string;
     startTime: number;
-    registrationEndTime: number; // NEW
+    registrationStartTime: number; // NEW: When registration opens
+    registrationEndTime: number;   // NEW: When registration closes
     endTime: number;
     stakeAmount: number; // in SUI
     capacity: number;
@@ -29,7 +30,8 @@ export class TransactionExecutor {
         tx.pure.string(params.description),
         tx.pure.string(params.location),
         tx.pure.u64(params.startTime),
-        tx.pure.u64(params.registrationEndTime), // NEW
+        tx.pure.u64(params.registrationStartTime), // NEW: When registration opens
+        tx.pure.u64(params.registrationEndTime),   // NEW: When registration closes
         tx.pure.u64(params.endTime),
         tx.pure.u64(Math.floor(params.stakeAmount * 1_000_000_000)), // Convert to MIST
         tx.pure.u64(params.capacity),

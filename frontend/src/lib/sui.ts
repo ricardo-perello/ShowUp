@@ -9,8 +9,8 @@ export const { networkConfig } = createNetworkConfig({
 });
 
 // Contract configuration
-export const CONTRACT_ADDRESS = '0x9cc2ce04c65bc552f2daaf278ac9f4f1839d55c376b27584efa736c8f587abfc';
-export const PACKAGE_ID = '0x9cc2ce04c65bc552f2daaf278ac9f4f1839d55c376b27584efa736c8f587abfc';
+export const CONTRACT_ADDRESS = '0x83220ccf961a102b198a9b75692c405d3aea9b4fea85f022cabe492bc26f682e';
+export const PACKAGE_ID = '0x83220ccf961a102b198a9b75692c405d3aea9b4fea85f022cabe492bc26f682e';
 
 // Event object type
 export interface Event {
@@ -42,7 +42,8 @@ export interface EventObject {
   description: string;
   location: string;
   startTime: string;
-  registrationEndTime: string;  // NEW: Registration deadline
+  registrationStartTime: string;  // NEW: When registration opens
+  registrationEndTime: string;    // NEW: When registration closes
   endTime: string;
   stakeAmount: string;
   capacity: string;
@@ -61,8 +62,102 @@ export interface EventObject {
 export const getEventType = (packageId: string) => 
   `${packageId}::showup::Event`;
 
+// Event types for network events
+export const EVENT_TYPES = {
+  EVENT_CREATED: 'EventCreated',
+  EVENT_JOINED: 'EventJoined',
+  EVENT_REQUESTED: 'EventRequested',
+  EVENT_REQUEST_ACCEPTED: 'EventRequestAccepted',
+  EVENT_REQUEST_REJECTED: 'EventRequestRejected',
+  EVENT_WITHDRAWN: 'EventWithdrawn',
+  EVENT_ATTENDED: 'EventAttended',
+  EVENT_CLAIMED: 'EventClaimed',
+  EVENT_REFUNDED: 'EventRefunded',
+  EVENT_CANCELLED: 'EventCancelled',
+  PENDING_STAKE_CLAIMED: 'PendingStakeClaimed',
+} as const;
+
+// Types for Sui client methods
+interface SuiClientQueryEvents {
+  queryEvents: (params: {
+    query: {
+      MoveEventType?: string;
+      MoveEventModule?: {
+        module: string;
+        package: string;
+      };
+    };
+    limit: number;
+    order: string;
+  }) => Promise<{ data: unknown[] }>;
+}
+
+interface SuiClientParticipantCheck {
+  getObject: (params: { id: string; options: { showContent: boolean; showType: boolean } }) => Promise<unknown>;
+  queryTransactionBlocks: (params: {
+    filter: {
+      FromAddress: string;
+      MoveFunction: {
+        package: string;
+        module: string;
+        function: string;
+      };
+    };
+    options: {
+      showEffects: boolean;
+      showObjectChanges: boolean;
+    };
+    limit: number;
+    order: string;
+  }) => Promise<{ data: unknown[] }>;
+  getDynamicFieldObject: (params: {
+    parentId: string;
+    name: {
+      type: string;
+      value: string;
+    };
+  }) => Promise<{ data?: unknown }>;
+}
+
+// Function to query network events
+export const queryNetworkEvents = async (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  suiClient: any,
+  packageId: string,
+  eventType?: string,
+  limit: number = 50
+) => {
+  try {
+    console.log('🔍 Querying network events:', { eventType, limit });
+    
+    const query = eventType 
+      ? {
+          MoveEventType: `${packageId}::showup::${eventType}`,
+        }
+      : {
+          MoveEventModule: {
+            module: 'showup',
+            package: packageId,
+          },
+        };
+
+    const events = await suiClient.queryEvents({
+      query,
+      limit,
+      order: 'descending',
+    });
+
+    console.log('✅ Found events:', events.data.length);
+    return events.data;
+  } catch (error) {
+    console.error('❌ Error querying network events:', error);
+    return [];
+  }
+};
+
 // Function to check if a user is a participant by querying the table
 export const isUserParticipant = async (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   suiClient: any, 
   eventId: string, 
   userAddress: string
@@ -74,7 +169,7 @@ export const isUserParticipant = async (
     const eventData = await suiClient.getObject({
       id: eventId,
       options: { showContent: true, showType: true }
-    });
+    }) as { data?: { content?: { fields?: Record<string, unknown> } } };
 
     if (!eventData.data?.content || !('fields' in eventData.data.content)) {
       return false;
@@ -87,7 +182,7 @@ export const isUserParticipant = async (
       return false;
     }
 
-    const tableFields = (participantsTable as any).fields;
+    const tableFields = (participantsTable as { fields: Record<string, unknown> }).fields;
     const tableId = tableFields.id;
     
     // Check if the table has entries by looking at the size
@@ -115,7 +210,7 @@ export const isUserParticipant = async (
         console.log('✅ User found in participants table');
         return true;
       }
-    } catch (tableError) {
+    } catch {
       console.log('🔍 User not found in participants table (this is normal if not a participant)');
     }
 
@@ -177,7 +272,8 @@ export const parseEventFromObject = (object: Record<string, unknown>): EventObje
     description: String(fields.description || ''),
     location: String(fields.location || ''),
     startTime: String(fields.start_time || '0'),
-    registrationEndTime: String(fields.registration_end_time || '0'),  // NEW
+    registrationStartTime: String(fields.registration_start_time || '0'),  // NEW
+    registrationEndTime: String(fields.registration_end_time || '0'),      // NEW
     endTime: String(fields.end_time || '0'),
     stakeAmount: String(fields.stake_amount || '0'),
     capacity: String(fields.capacity || '0'),

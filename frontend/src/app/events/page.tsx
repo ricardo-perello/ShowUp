@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
-import { Calendar, ArrowLeft, Users, Clock, Coins, UserPlus, Eye } from 'lucide-react';
+import { Calendar, ArrowLeft, Users, Clock, Coins, UserPlus, Eye, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { EventObject, isUserParticipant } from '@/lib/sui';
 import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
@@ -69,10 +69,12 @@ export default function EventsPage() {
   const getEventStatus = (event: EventObject) => {
     const now = Math.floor(Date.now() / 1000);
     const startTime = parseInt(event.startTime);
+    const registrationStartTime = parseInt(event.registrationStartTime);
     const registrationEndTime = parseInt(event.registrationEndTime);
     const endTime = parseInt(event.endTime);
     
-    if (now < registrationEndTime) return 'upcoming';
+    if (now < registrationStartTime) return 'registration_not_started';
+    if (now >= registrationStartTime && now < registrationEndTime) return 'upcoming';
     if (now >= registrationEndTime && now < startTime) return 'registration_closed';
     if (now >= startTime && now < endTime) return 'ongoing';
     if (now >= endTime) return 'ended';
@@ -204,6 +206,12 @@ export default function EventsPage() {
               >
                 {isLoading || transactionLoading ? 'Loading...' : 'Refresh'}
               </Button>
+              <Link href="/activity">
+                <Button variant="outline">
+                  <Activity className="h-4 w-4 mr-2" />
+                  Activity
+                </Button>
+              </Link>
               <Link href="/my-participations">
                 <Button variant="outline">My Participations</Button>
               </Link>
@@ -261,6 +269,10 @@ export default function EventsPage() {
                         </div>
                         <div className="flex items-center text-sm text-gray-500 mb-2">
                           <Clock className="h-4 w-4 mr-1" />
+                          Registration opens: {formatTimestamp(event.registrationStartTime)}
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500 mb-2">
+                          <Clock className="h-4 w-4 mr-1" />
                           Registration closes: {formatTimestamp(event.registrationEndTime)}
                         </div>
                         <div className="flex items-center text-sm text-gray-500 mb-2">
@@ -284,13 +296,15 @@ export default function EventsPage() {
                     {/* Status Badge */}
                     <div className="mb-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        status === 'registration_not_started' ? 'bg-yellow-100 text-yellow-800' :
                         status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
                         status === 'registration_closed' ? 'bg-orange-100 text-orange-800' :
                         status === 'ongoing' ? 'bg-green-100 text-green-800' :
                         status === 'ended' ? 'bg-gray-100 text-gray-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {status === 'upcoming' ? 'Registration Open' :
+                        {status === 'registration_not_started' ? 'Registration Not Started' :
+                         status === 'upcoming' ? 'Registration Open' :
                          status === 'registration_closed' ? 'Registration Closed' :
                          status === 'ongoing' ? 'Ongoing' :
                          status === 'ended' ? 'Ended' : 'Unknown'}
@@ -328,6 +342,11 @@ export default function EventsPage() {
                         <Button variant="outline" className="w-full" disabled>
                           <Users className="h-4 w-4 mr-2" />
                           Your Event
+                        </Button>
+                      ) : status === 'registration_not_started' ? (
+                        <Button variant="outline" className="w-full" disabled>
+                          <Clock className="h-4 w-4 mr-2" />
+                          Registration Not Started
                         </Button>
                       ) : status === 'registration_closed' ? (
                         <Button variant="outline" className="w-full" disabled>

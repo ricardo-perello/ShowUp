@@ -9,6 +9,7 @@ module showup::showup {
     use sui::sui::SUI;
     use std::string::String;
     use sui::table::{Self, Table};
+    use sui::event;
 
     // Error codes
     const E_INSUFFICIENT_STAKE: u64 = 0;
@@ -27,6 +28,75 @@ module showup::showup {
     const E_ORGANIZER_CANNOT_PARTICIPATE: u64 = 13;
     const E_ALREADY_PARTICIPANT: u64 = 14;
     const E_ALREADY_REQUESTED: u64 = 15;
+
+    // Event structs for tracking important actions
+    public struct EventCreated has copy, drop {
+        event_id: ID,
+        organizer: address,
+        name: String,
+        stake_amount: u64,
+        capacity: u64,
+        must_request_to_join: bool,
+    }
+
+    public struct EventJoined has copy, drop {
+        event_id: ID,
+        participant: address,
+        stake_amount: u64,
+    }
+
+    public struct EventRequested has copy, drop {
+        event_id: ID,
+        participant: address,
+        stake_amount: u64,
+    }
+
+    public struct EventRequestAccepted has copy, drop {
+        event_id: ID,
+        participant: address,
+        organizer: address,
+    }
+
+    public struct EventRequestRejected has copy, drop {
+        event_id: ID,
+        participant: address,
+        organizer: address,
+    }
+
+    public struct EventWithdrawn has copy, drop {
+        event_id: ID,
+        participant: address,
+        stake_amount: u64,
+    }
+
+    public struct EventAttended has copy, drop {
+        event_id: ID,
+        participant: address,
+        organizer: address,
+    }
+
+    public struct EventClaimed has copy, drop {
+        event_id: ID,
+        participant: address,
+        amount: u64,
+    }
+
+    public struct EventRefunded has copy, drop {
+        event_id: ID,
+        participant: address,
+        amount: u64,
+    }
+
+    public struct EventCancelled has copy, drop {
+        event_id: ID,
+        organizer: address,
+    }
+
+    public struct PendingStakeClaimed has copy, drop {
+        event_id: ID,
+        participant: address,
+        amount: u64,
+    }
 
     /// Event object definition
     /// COMPLETELY IMMUTABLE after creation - NO ONE can modify event details
@@ -87,6 +157,16 @@ module showup::showup {
             pending_vault: balance::zero<SUI>(),
             total_pot: 0xFFFFFFFFFFFFFFFF, // Negative value to indicate uninitialized
         };
+        
+        // Emit event when event is created
+        event::emit(EventCreated {
+            event_id: sui::object::uid_to_inner(&event.id),
+            organizer: sui::tx_context::sender(ctx),
+            name: name,
+            stake_amount: stake_amount,
+            capacity: capacity,
+            must_request_to_join: must_request_to_join,
+        });
         
         // Make the event a shared object so anyone can join
         sui::transfer::share_object(event);
@@ -169,6 +249,13 @@ module showup::showup {
 
         // Add participant (guaranteed not present due to assert above)
         table::add(&mut event.participants, sender, true);
+        
+        // Emit event when someone joins
+        event::emit(EventJoined {
+            event_id: sui::object::uid_to_inner(&event.id),
+            participant: sender,
+            stake_amount: event.stake_amount,
+        });
     }
 
     public entry fun request_to_join(
@@ -214,6 +301,13 @@ module showup::showup {
 
         // Add to pending requests (guaranteed not present due to assert above)
         table::add(&mut event.pending_requests, sender, true);
+        
+        // Emit event when someone requests to join
+        event::emit(EventRequested {
+            event_id: sui::object::uid_to_inner(&event.id),
+            participant: sender,
+            stake_amount: event.stake_amount,
+        });
     }
 
     public entry fun accept_requests(
@@ -243,6 +337,14 @@ module showup::showup {
             table::remove(&mut event.pending_requests, participant);
             // Add to participants (aborts if already joined)
             table::add(&mut event.participants, participant, true);
+            
+            // Emit event for each accepted request
+            event::emit(EventRequestAccepted {
+                event_id: sui::object::uid_to_inner(&event.id),
+                participant: participant,
+                organizer: event.organizer,
+            });
+            
             i = i + 1;
         };
     }
@@ -266,6 +368,14 @@ module showup::showup {
             let refund_balance = balance::split(&mut event.pending_vault, event.stake_amount);
             let refund_coin = coin::from_balance(refund_balance, ctx);
             sui::transfer::public_transfer(refund_coin, participant);
+            
+            // Emit event for each rejected request
+            event::emit(EventRequestRejected {
+                event_id: sui::object::uid_to_inner(&event.id),
+                participant: participant,
+                organizer: event.organizer,
+            });
+            
             i = i + 1;
         };
     }
@@ -288,6 +398,13 @@ module showup::showup {
         
         // Remove from participants (no refund - stake is forfeited)
         table::remove(&mut event.participants, sender);
+        
+        // Emit event when someone withdraws
+        event::emit(EventWithdrawn {
+            event_id: sui::object::uid_to_inner(&event.id),
+            participant: sender,
+            stake_amount: event.stake_amount,
+        });
     }
 
     public entry fun mark_attended(
@@ -306,6 +423,13 @@ module showup::showup {
             // Add attendee (aborts if already marked)
             if (!table::contains(&event.attendees, participant)) {
                 table::add(&mut event.attendees, participant, true);
+                
+                // Emit event for each marked attendee
+                event::emit(EventAttended {
+                    event_id: sui::object::uid_to_inner(&event.id),
+                    participant: participant,
+                    organizer: event.organizer,
+                });
             };
             i = i + 1;
         };
@@ -355,7 +479,16 @@ module showup::showup {
             };
             
             let refund_balance = balance::split(&mut event.participant_vault, payout_amount);
-            coin::from_balance(refund_balance, ctx)
+            let refund_coin = coin::from_balance(refund_balance, ctx);
+            
+            // Emit event when someone claims (no attendees case)
+            event::emit(EventClaimed {
+                event_id: sui::object::uid_to_inner(&event.id),
+                participant: sender,
+                amount: payout_amount,
+            });
+            
+            refund_coin
         } else {
             // Someone attended - check if this participant attended
             assert!(table::contains(&event.attendees, sender), E_DID_NOT_ATTEND);
@@ -383,7 +516,16 @@ module showup::showup {
             };
             
             let payout_bal = balance::split(&mut event.participant_vault, payout_amount);
-            coin::from_balance(payout_bal, ctx)
+            let payout_coin = coin::from_balance(payout_bal, ctx);
+            
+            // Emit event when someone claims (attendees case)
+            event::emit(EventClaimed {
+                event_id: sui::object::uid_to_inner(&event.id),
+                participant: sender,
+                amount: payout_amount,
+            });
+            
+            payout_coin
         }
     }
 
@@ -411,7 +553,16 @@ module showup::showup {
         
         // Return stake amount from pending vault
         let refund_balance = balance::split(&mut event.pending_vault, event.stake_amount);
-        coin::from_balance(refund_balance, ctx)
+        let refund_coin = coin::from_balance(refund_balance, ctx);
+        
+        // Emit event when someone claims pending stake
+        event::emit(PendingStakeClaimed {
+            event_id: sui::object::uid_to_inner(&event.id),
+            participant: sender,
+            amount: event.stake_amount,
+        });
+        
+        refund_coin
     }
 
     public entry fun cancel_event(
@@ -427,6 +578,12 @@ module showup::showup {
         // Mark cancelled and unlock pending refunds immediately
         event.end_time = 0;
         event.registration_end_time = 0;
+        
+        // Emit event when event is cancelled
+        event::emit(EventCancelled {
+            event_id: sui::object::uid_to_inner(&event.id),
+            organizer: sender,
+        });
     }
 
     public fun refund(
@@ -448,7 +605,16 @@ module showup::showup {
         
         // Fixed refund = stake amount from participant vault
         let refund_balance = balance::split(&mut event.participant_vault, event.stake_amount);
-        coin::from_balance(refund_balance, ctx)
+        let refund_coin = coin::from_balance(refund_balance, ctx);
+        
+        // Emit event when someone gets a refund
+        event::emit(EventRefunded {
+            event_id: sui::object::uid_to_inner(&event.id),
+            participant: sender,
+            amount: event.stake_amount,
+        });
+        
+        refund_coin
     }
 
     // Entry wrappers for shared-object use that transfer coins to the caller
