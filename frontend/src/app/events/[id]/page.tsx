@@ -353,39 +353,49 @@ export default function EventDetailsPage() {
   const isParticipant = Array.isArray(event.participants) ? event.participants.includes(account.address) : false;
   const isAttendee = Array.isArray(event.attendees) ? event.attendees.includes(account.address) : false;
   const hasClaimed = Array.isArray(event.claimed) ? event.claimed.includes(account.address) : false;
-  const isCancelled = (event.end_time as string) === '0';
-  const currentTime = Math.floor(Date.now() / 1000);
+
+  // Event status logic (same as events page)
+  const getEventStatus = () => {
+    const now = Math.floor(Date.now() / 1000);
+    const startTime = parseInt(event.start_time as string);
+    const registrationStartTime = parseInt(event.registration_start_time as string);
+    const registrationEndTime = parseInt(event.registration_end_time as string);
+    const endTime = parseInt(event.end_time as string);
+    
+    // Debug logging
+    console.log('🕐 Event Status Debug:', {
+      now: new Date(now * 1000).toLocaleString(),
+      startTime: new Date(startTime * 1000).toLocaleString(),
+      registrationStartTime: new Date(registrationStartTime * 1000).toLocaleString(),
+      registrationEndTime: new Date(registrationEndTime * 1000).toLocaleString(),
+      endTime: new Date(endTime * 1000).toLocaleString(),
+      nowUnix: now,
+      endTimeUnix: endTime,
+      hasEnded: now >= endTime
+    });
+    
+    if (now < registrationStartTime) return 'registration_not_started';
+    if (now >= registrationStartTime && now < registrationEndTime) return 'upcoming';
+    if (now >= registrationEndTime && now < startTime) return 'registration_closed';
+    if (now >= startTime && now < endTime) return 'ongoing';
+    if (now >= endTime) return 'ended';
+    return 'unknown';
+  };
+
+  const eventStatus = getEventStatus();
+  const eventStarted = eventStatus === 'ongoing' || eventStatus === 'ended';
+  const isCancelled = parseInt(event.end_time as string) === 0;
+  const canJoin = !isOrganizer && !isParticipant && eventStatus === 'upcoming' && !isCancelled;
+  const canRequest = !isOrganizer && !isParticipant && eventStatus === 'upcoming' && !isCancelled && Boolean(event.must_request_to_join);
   
-  // Parse times more robustly
-  const startTimeStr = event.start_time as string;
-  const endTimeStr = event.end_time as string;
-  
-  // Handle different time formats
-  let startTime = parseInt(startTimeStr);
-  let endTime = parseInt(endTimeStr);
-  
-  // If the time seems too large (milliseconds), convert to seconds
-  if (startTime > 10000000000) { // More than year 2001 in seconds
-    startTime = Math.floor(startTime / 1000);
-  }
-  if (endTime > 10000000000) {
-    endTime = Math.floor(endTime / 1000);
-  }
-  
-  // Debug time values
-  console.log('🕐 Time Debug:', {
-    currentTime,
-    startTimeRaw: startTimeStr,
-    endTimeRaw: endTimeStr,
-    startTimeParsed: startTime,
-    endTimeParsed: endTime,
-    eventStarted: currentTime >= startTime,
-    eventEnded: currentTime >= endTime,
-    timeDiff: currentTime - startTime
+  // Debug logging
+  console.log('🎯 Event Status Result:', {
+    eventStatus,
+    eventStarted,
+    isCancelled,
+    isOrganizer,
+    showMarkAttendance: isOrganizer && eventStatus !== 'ended'
   });
-  
-  const eventEnded = currentTime >= endTime;
-  const eventStarted = currentTime >= startTime;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -517,31 +527,29 @@ export default function EventDetailsPage() {
 
             {/* Action Buttons */}
             <div className="mt-6 space-y-3">
-              {/* Join/Request buttons for non-participants */}
-              {!isParticipant && !eventStarted && !isCancelled && (
-                <>
-                  {!event.must_request_to_join ? (
-                    <Button 
-                      onClick={handleJoin} 
-                      disabled={isJoining}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      {isJoining ? 'Joining...' : `Join Event (${formatSUI(event.stake_amount)} SUI)`}
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={handleRequestToJoin} 
-                      disabled={isRequesting}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
-                    >
-                      {isRequesting ? 'Requesting...' : `Request to Join (${formatSUI(event.stake_amount)} SUI)`}
-                    </Button>
-                  )}
-                </>
+              {/* Join/Request buttons for non-participants (not organizers) */}
+              {canJoin && (
+                <Button 
+                  onClick={handleJoin} 
+                  disabled={isJoining}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  {isJoining ? 'Joining...' : `Join Event (${formatSUI(event.stake_amount)} SUI)`}
+                </Button>
+              )}
+              
+              {canRequest && (
+                <Button 
+                  onClick={handleRequestToJoin} 
+                  disabled={isRequesting}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  {isRequesting ? 'Requesting...' : `Request to Join (${formatSUI(event.stake_amount)} SUI)`}
+                </Button>
               )}
 
-              {/* Withdraw button for participants before event starts */}
-              {isParticipant && !eventStarted && !isCancelled && (
+              {/* Withdraw button for participants before event starts and haven't claimed */}
+              {isParticipant && !eventStarted && !isCancelled && !hasClaimed && (
                 <Button 
                   onClick={handleWithdraw} 
                   disabled={isWithdrawing}
@@ -587,12 +595,15 @@ export default function EventDetailsPage() {
               {/* Organizer buttons */}
               {isOrganizer && (
                 <>
-                  <Link href={`/checkin/${eventId}`}>
-                    <Button variant="outline" className="w-full">
-                      <QrCode className="h-4 w-4 mr-2" />
-                      Mark Attendance
-                    </Button>
-                  </Link>
+                  {/* Mark Attendance button - only show if event hasn't ended */}
+                  {eventStatus !== 'ended' && (
+                    <Link href={`/checkin/${eventId}`}>
+                      <Button variant="outline" className="w-full">
+                        <QrCode className="h-4 w-4 mr-2" />
+                        Mark Attendance
+                      </Button>
+                    </Link>
+                  )}
                   
                   {/* Pending requests management */}
                   {pendingRequests.length > 0 && (
@@ -636,31 +647,33 @@ export default function EventDetailsPage() {
             </div>
           </div>
 
-          {/* QR Code for Participants */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Your QR Code</h2>
-            
-            {generateQRCode() && (
-              <div className="text-center">
-                <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
-                  <QRCodeSVG value={generateQRCode()!} size={200} />
+          {/* QR Code for Participants (not organizers) */}
+          {!isOrganizer && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Your QR Code</h2>
+              
+              {generateQRCode() && (
+                <div className="text-center">
+                  <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
+                    <QRCodeSVG value={generateQRCode()!} size={200} />
+                  </div>
+                  <p className="mt-4 text-sm text-gray-600">
+                    Show this QR code to the organizer to mark your attendance
+                  </p>
                 </div>
-                <p className="mt-4 text-sm text-gray-600">
-                  Show this QR code to the organizer to mark your attendance
-                </p>
-              </div>
-            )}
+              )}
 
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="text-sm font-medium text-blue-900 mb-2">Status</h3>
-              <div className="text-sm text-blue-800 space-y-1">
-                <p>• Participant: {isParticipant ? 'Yes' : 'No'}</p>
-                <p>• Attended: {isAttendee ? 'Yes' : 'No'}</p>
-                <p>• Claimed: {hasClaimed ? 'Yes' : 'No'}</p>
-                <p>• Event Status: {isCancelled ? 'Cancelled' : eventEnded ? 'Ended' : eventStarted ? 'In Progress' : 'Not Started'}</p>
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="text-sm font-medium text-blue-900 mb-2">Status</h3>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p>• Participant: {isParticipant ? 'Yes' : 'No'}</p>
+                  <p>• Attended: {isAttendee ? 'Yes' : 'No'}</p>
+                  <p>• Claimed: {hasClaimed ? 'Yes' : 'No'}</p>
+                  <p>• Event Status: {isCancelled ? 'Cancelled' : eventStatus === 'ended' ? 'Ended' : eventStatus === 'ongoing' ? 'In Progress' : 'Not Started'}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
     </div>

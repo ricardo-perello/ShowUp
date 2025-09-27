@@ -45,6 +45,8 @@ export default function ActivityPage() {
     try {
       const eventType = selectedEventType === 'all' ? undefined : selectedEventType;
       const networkEvents = await queryNetworkEvents(eventType, 50);
+      console.log('🔍 Raw network events:', networkEvents);
+      console.log('🔍 First event structure:', networkEvents[0]);
       setEvents(networkEvents as NetworkEvent[]);
     } catch (error) {
       console.error('Error fetching network events:', error);
@@ -172,8 +174,12 @@ export default function ActivityPage() {
               <p className="text-gray-600">No activity found</p>
             </div>
           ) : (
-            events.map((event) => (
-              <div key={event.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            events.map((event, index) => {
+              console.log('🔍 Event in activity page:', { id: event.id, type: typeof event.id, index });
+              // Ensure we always have a unique string key
+              const eventKey = typeof event.id === 'string' && event.id ? event.id : `event-${index}-${event.timestamp || Date.now()}`;
+              return (
+              <div key={eventKey} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -201,7 +207,8 @@ export default function ActivityPage() {
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
 

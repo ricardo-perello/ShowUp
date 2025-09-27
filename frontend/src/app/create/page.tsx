@@ -21,9 +21,9 @@ export default function CreateEvent() {
     stakeAmount: '',
     capacity: '',
     registrationStartTime: new Date(), // Default to now
-    registrationEndTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Default to 24 hours from now
-    eventStartTime: new Date(Date.now() + 25 * 60 * 60 * 1000), // Default to 25 hours from now
-    eventEndTime: new Date(Date.now() + 27 * 60 * 60 * 1000), // Default to 27 hours from now (2 hour event)
+    registrationEndTime: new Date(Date.now() + 3 * 60 * 1000), // Default to 3 mins from now
+    eventStartTime: new Date(Date.now() +  4 * 60 * 1000), // Default to 4 mins from now
+    eventEndTime: new Date(Date.now() + 7 * 60 * 1000), // Default to 7 mins from now
     mustRequestToJoin: false, // Default to public event
   });
 

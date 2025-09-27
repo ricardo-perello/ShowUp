@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
 import { ArrowLeft, QrCode, CheckCircle, X, Users, AlertCircle } from 'lucide-react';
@@ -12,6 +12,7 @@ import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 
 export default function CheckinPage() {
   const account = useCurrentAccount();
+  const suiClient = useSuiClient();
   const params = useParams();
   const eventId = params.id as string;
   
@@ -21,7 +22,59 @@ export default function CheckinPage() {
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [markingAttendance, setMarkingAttendance] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [event, setEvent] = useState<Record<string, unknown> | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  // Fetch event data
+  useEffect(() => {
+    const fetchEvent = async () => {
+      if (!account || !suiClient) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const eventData = await suiClient.getObject({
+          id: eventId,
+          options: {
+            showContent: true,
+            showDisplay: true,
+          },
+        });
+
+        if (eventData.data?.content && 'fields' in eventData.data.content) {
+          const eventFields = eventData.data.content.fields as Record<string, unknown>;
+          
+          // Create a properly parsed event object
+          const eventObject = {
+            id: eventId,
+            organizer: eventFields.organizer,
+            name: eventFields.name,
+            description: eventFields.description,
+            location: eventFields.location,
+            startTime: eventFields.start_time,
+            endTime: eventFields.end_time,
+            stakeAmount: eventFields.stake_amount,
+            capacity: eventFields.capacity,
+            mustRequestToJoin: eventFields.must_request_to_join,
+            participants: eventFields.participants,
+            attendees: eventFields.attendees,
+            claimed: eventFields.claimed,
+            pendingRequests: eventFields.pending_requests,
+          };
+          
+          setEvent(eventObject);
+        }
+      } catch (error) {
+        console.error('Error fetching event:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEvent();
+  }, [account, suiClient, eventId]);
 
   const handleMarkAttendance = useCallback(async (participantAddress: string) => {
     if (markingAttendance === participantAddress) return; // Prevent double calls
@@ -55,8 +108,10 @@ export default function CheckinPage() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // For now, assume user is organizer (in real app, check from event data)
-  const isOrganizer = true;
+  // Check if user is organizer and if event has ended
+  const isOrganizer = account?.address === (event?.organizer as string);
+  const eventEnded = event ? Math.floor(Date.now() / 1000) >= parseInt(event.endTime as string) : false;
+  const canScan = isOrganizer && !eventEnded;
 
   const startScanning = () => {
     setIsScanning(true);
@@ -202,6 +257,7 @@ export default function CheckinPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
+          <X className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
           <p className="text-gray-600 mb-6">Only the event organizer can scan QR codes</p>
           <Link href="/events">
@@ -211,6 +267,22 @@ export default function CheckinPage() {
       </div>
     );
   }
+
+  if (eventEnded) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-orange-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Event Has Ended</h1>
+          <p className="text-gray-600 mb-6">QR code scanning is no longer available for this event</p>
+          <Link href="/events">
+            <Button>Back to Events</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -241,8 +313,12 @@ export default function CheckinPage() {
               <div className="text-center py-12">
                 <QrCode className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 mb-6">Start scanning to mark attendance</p>
-                <Button onClick={startScanning} className="w-full">
-                  Start Scanning
+                <Button 
+                  onClick={startScanning} 
+                  disabled={!canScan}
+                  className="w-full"
+                >
+                  {canScan ? 'Start Scanning' : 'Scanning Not Available'}
                 </Button>
               </div>
             ) : (

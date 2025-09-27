@@ -209,43 +209,10 @@ export const isUserParticipant = async (
     }
     
     console.log('🔍 User not found in participants VecMap');
-
-    // Double-check suiClient before fallback query
-    if (!suiClient || typeof suiClient !== 'object') {
-      console.error('❌ SuiClient is not available for fallback query');
-      return false;
-    }
-
-    // Fallback: check transaction history
-    const recentTxs = await suiClient.queryTransactionBlocks({
-      filter: {
-        FromAddress: userAddress,
-        MoveFunction: `${PACKAGE_ID}::showup::join_event`,
-      },
-      options: {
-        showEffects: true,
-        showObjectChanges: true,
-      },
-      limit: 20,
-      order: 'descending',
-    });
-
-    console.log('🔍 Found', recentTxs.data.length, 'join_event transactions from user');
-
-    // Check if any of the recent join_event transactions involved this specific event
-    for (const tx of recentTxs.data) {
-      console.log('🔍 Checking transaction:', tx.digest);
-      if (tx.objectChanges) {
-        for (const change of tx.objectChanges) {
-          console.log('🔍 Object change:', change.type, change.objectId);
-          if (change.type === 'mutated' && change.objectId === eventId) {
-            console.log('✅ Found join_event transaction for user in this event');
-            return true;
-          }
-        }
-      }
-    }
-
+    
+    // Skip fallback query to avoid suiClient issues
+    // The VecMap check above should be sufficient for most cases
+    console.log('🔍 Skipping fallback query to avoid suiClient issues');
     return false;
   } catch (error) {
     console.error('❌ Error checking participant status:', error);
