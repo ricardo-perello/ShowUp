@@ -10,6 +10,7 @@ module showup::showup {
     use std::string::String;
     use sui::table::{Self, Table};
     use sui::event;
+    use sui::clock::{Self, Clock};
 
     // Error codes
     const E_INSUFFICIENT_STAKE: u64 = 0;
@@ -213,13 +214,14 @@ module showup::showup {
     public entry fun join_event(
         event: &mut Event,
         _coins: Coin<SUI>,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ) {
         // Only allow direct joining for public events
         assert!(!event.must_request_to_join, E_EVENT_REQUIRES_APPROVAL);
 
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx);
+        let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
 
         // Organizer cannot participate in their own event
         assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
@@ -261,13 +263,14 @@ module showup::showup {
     public entry fun request_to_join(
         event: &mut Event,
         _coins: Coin<SUI>,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ) {
         // Only allow requests for private events
         assert!(event.must_request_to_join, E_EVENT_REQUIRES_APPROVAL);
 
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx);
+        let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
 
         // Organizer cannot participate in their own event
         assert!(sender != event.organizer, E_ORGANIZER_CANNOT_PARTICIPATE);
@@ -382,10 +385,11 @@ module showup::showup {
 
     public entry fun withdraw_from_event(
         event: &mut Event,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ) {
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx);
+        let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
         
         // Must be a participant
         assert!(table::contains(&event.participants, sender), E_NOT_PARTICIPANT);
@@ -437,10 +441,11 @@ module showup::showup {
 
     public fun claim(
         event: &mut Event,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ): Coin<SUI> {
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx);
+        let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
 
         // Event must have ended
         assert!(now >= event.end_time, E_EVENT_NOT_ENDED);
@@ -531,10 +536,11 @@ module showup::showup {
 
     public fun claim_pending_stake(
         event: &mut Event,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ): Coin<SUI> {
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx);
+        let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
 
         // Must have a pending request
         assert!(table::contains(&event.pending_requests, sender), E_NOT_IN_REQUESTS);
@@ -567,10 +573,11 @@ module showup::showup {
 
     public entry fun cancel_event(
         event: &mut Event,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ) {
         let sender = sui::tx_context::sender(ctx);
-        let now = sui::tx_context::epoch(ctx);
+        let now = sui::clock::timestamp_ms(clock) / 1000; // Convert to seconds
         
         assert!(sender == event.organizer, E_NOT_ORGANIZER);
         assert!(now < event.start_time, E_EVENT_ALREADY_STARTED);
@@ -588,6 +595,7 @@ module showup::showup {
 
     public fun refund(
         event: &mut Event,
+        clock: &Clock,
         ctx: &mut sui::tx_context::TxContext
     ): Coin<SUI> {
         let sender = sui::tx_context::sender(ctx);
@@ -618,20 +626,20 @@ module showup::showup {
     }
 
     // Entry wrappers for shared-object use that transfer coins to the caller
-    public entry fun claim_entry(event: &mut Event, ctx: &mut sui::tx_context::TxContext) {
-        let coin_out = claim(event, ctx);
+    public entry fun claim_entry(event: &mut Event, clock: &Clock, ctx: &mut sui::tx_context::TxContext) {
+        let coin_out = claim(event, clock, ctx);
         let sender = sui::tx_context::sender(ctx);
         sui::transfer::public_transfer(coin_out, sender);
     }
 
-    public entry fun claim_pending_stake_entry(event: &mut Event, ctx: &mut sui::tx_context::TxContext) {
-        let coin_out = claim_pending_stake(event, ctx);
+    public entry fun claim_pending_stake_entry(event: &mut Event, clock: &Clock, ctx: &mut sui::tx_context::TxContext) {
+        let coin_out = claim_pending_stake(event, clock, ctx);
         let sender = sui::tx_context::sender(ctx);
         sui::transfer::public_transfer(coin_out, sender);
     }
 
-    public entry fun refund_entry(event: &mut Event, ctx: &mut sui::tx_context::TxContext) {
-        let coin_out = refund(event, ctx);
+    public entry fun refund_entry(event: &mut Event, clock: &Clock, ctx: &mut sui::tx_context::TxContext) {
+        let coin_out = refund(event, clock, ctx);
         let sender = sui::tx_context::sender(ctx);
         sui::transfer::public_transfer(coin_out, sender);
     }

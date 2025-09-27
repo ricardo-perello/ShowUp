@@ -3,6 +3,7 @@ module showup::showup_tests {
     use sui::test_scenario::Self as test_scenario;
     use sui::coin::Self;
     use sui::sui::SUI;
+    use sui::clock::Clock;
     use std::string::{Self, String};
     use showup::showup;
     use showup::showup::{
@@ -39,6 +40,12 @@ module showup::showup_tests {
     // Helper function to create test strings
     fun create_test_string(bytes: vector<u8>): String {
         string::utf8(bytes)
+    }
+
+    // Helper function to create and share a Clock object for testing
+    fun setup_clock(scenario: &mut test_scenario::Scenario) {
+        let clock = sui::clock::create_for_testing(test_scenario::ctx(scenario));
+        sui::clock::share_for_testing(clock);
     }
 
     // Helper function to create an "ended" event for testing
@@ -97,6 +104,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_REGISTRATION_NOT_STARTED)]
     fun test_join_event_before_registration_starts() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create event with registration starting at time 10
@@ -117,8 +126,10 @@ module showup::showup_tests {
         // Try to join before registration starts (current epoch = 0, registration starts at 10)
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Clean up
         showup::destroy_event(event);
@@ -128,6 +139,8 @@ module showup::showup_tests {
     #[test]
     fun test_join_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -149,9 +162,11 @@ module showup::showup_tests {
         
         // Switch to participant context
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
         
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify participant was added
         assert!(showup::get_participants_count(&event) == 1, 0);
@@ -167,6 +182,8 @@ module showup::showup_tests {
     #[test]
     fun test_mark_attended() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -186,8 +203,10 @@ module showup::showup_tests {
         // Add participant
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Switch back to organizer
         test_scenario::next_tx(&mut scenario, ORGANIZER);
@@ -207,6 +226,8 @@ module showup::showup_tests {
     #[test]
     fun test_claim_success() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = create_ended_event(ctx);
@@ -214,8 +235,10 @@ module showup::showup_tests {
         // Add participant and mark as attended
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -223,8 +246,10 @@ module showup::showup_tests {
         
         // Switch to participant to claim
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout = showup::claim(&mut event, ctx);
+        let payout = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Transfer payout to avoid drop error
         sui::transfer::public_transfer(payout, PARTICIPANT1);
@@ -242,6 +267,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_INSUFFICIENT_STAKE)]
     fun test_join_event_insufficient_stake() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -262,8 +289,10 @@ module showup::showup_tests {
         let coin = coin::mint_for_testing<SUI>(500, test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Clean up
         showup::destroy_event(event);
@@ -302,6 +331,8 @@ module showup::showup_tests {
     #[test]
     fun test_mark_attended_batch() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -321,20 +352,26 @@ module showup::showup_tests {
         // Participant 1 joins
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Participant 2 joins
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Participant 3 joins
         let coin3 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin3, ctx);
+        showup::join_event(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Switch back to organizer
         test_scenario::next_tx(&mut scenario, ORGANIZER);
@@ -357,6 +394,8 @@ module showup::showup_tests {
     #[test]
     fun test_request_to_join_private_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event (must_request_to_join = true)
@@ -377,8 +416,10 @@ module showup::showup_tests {
         // Participant requests to join
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin, ctx);
+        showup::request_to_join(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify request was added to pending requests
         assert!(showup::get_pending_requests_count(&event) == 1, 0);
@@ -394,6 +435,8 @@ module showup::showup_tests {
     #[test]
     fun test_accept_requests_batch() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event
@@ -414,18 +457,24 @@ module showup::showup_tests {
         // Participants request to join
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin1, ctx);
+        showup::request_to_join(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin2, ctx);
+        showup::request_to_join(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin3 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin3, ctx);
+        showup::request_to_join(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify all requests are pending
         assert!(showup::get_pending_requests_count(&event) == 3, 0);
@@ -451,6 +500,8 @@ module showup::showup_tests {
     #[test]
     fun test_reject_requests_batch() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event
@@ -471,13 +522,17 @@ module showup::showup_tests {
         // Participants request to join
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin1, ctx);
+        showup::request_to_join(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin2, ctx);
+        showup::request_to_join(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify requests are pending
         assert!(showup::get_pending_requests_count(&event) == 2, 0);
@@ -503,6 +558,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_EVENT_REQUIRES_APPROVAL)]
     fun test_join_private_event_directly() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event
@@ -523,8 +580,10 @@ module showup::showup_tests {
         // Try to join directly (should fail)
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Clean up
         showup::destroy_event(event);
@@ -535,6 +594,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_NOT_ORGANIZER)]
     fun test_accept_requests_not_organizer() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event
@@ -555,8 +616,10 @@ module showup::showup_tests {
         // Participant requests to join
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin, ctx);
+        showup::request_to_join(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Non-organizer tries to accept request (should fail)
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
@@ -572,6 +635,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_NOT_ORGANIZER)]
     fun test_reject_requests_not_organizer() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event
@@ -592,8 +657,10 @@ module showup::showup_tests {
         // Participant requests to join
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin, ctx);
+        showup::request_to_join(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Non-organizer tries to reject request (should fail)
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
@@ -609,6 +676,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_CAPACITY_EXCEEDED)]
     fun test_accept_requests_exceeds_capacity() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event with capacity 2
@@ -629,18 +698,24 @@ module showup::showup_tests {
         // Participants request to join
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin1, ctx);
+        showup::request_to_join(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin2, ctx);
+        showup::request_to_join(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin3 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin3, ctx);
+        showup::request_to_join(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify we have 3 pending requests
         assert!(showup::get_pending_requests_count(&event) == 3, 0);
@@ -659,6 +734,8 @@ module showup::showup_tests {
     #[test]
     fun test_accept_requests_within_capacity() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event with capacity 3
@@ -679,13 +756,17 @@ module showup::showup_tests {
         // Participants request to join
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin1, ctx);
+        showup::request_to_join(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin2, ctx);
+        showup::request_to_join(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify we have 2 pending requests
         assert!(showup::get_pending_requests_count(&event) == 2, 0);
@@ -710,6 +791,8 @@ module showup::showup_tests {
     #[test]
     fun test_withdraw_from_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create public event
@@ -730,15 +813,20 @@ module showup::showup_tests {
         // Participant joins
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify participant is in the event
         assert!(showup::get_participants_count(&event) == 1, 0);
         assert!(showup::is_participant(&event, PARTICIPANT1), 1);
         
-        // Participant withdraws
-        showup::withdraw_from_event(&mut event, ctx);
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);        // Participant withdraws
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::withdraw_from_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify participant is no longer in the event
         assert!(showup::get_participants_count(&event) == 0, 2);
@@ -752,6 +840,8 @@ module showup::showup_tests {
     #[test]
     fun test_claim_no_attendees() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create public event with ended event (end_time = 0, current epoch = 0)
@@ -760,13 +850,17 @@ module showup::showup_tests {
         // Participants join
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify participants are in the event
         assert!(showup::get_participants_count(&event) == 2, 0);
@@ -774,14 +868,18 @@ module showup::showup_tests {
         
         // Participants claim refund (since no one attended)
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let refund1 = showup::claim(&mut event, ctx);
+        let refund1 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&refund1) == STAKE_AMOUNT, 2);
         sui::transfer::public_transfer(refund1, PARTICIPANT1);
         
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let refund2 = showup::claim(&mut event, ctx);
+        let refund2 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&refund2) == STAKE_AMOUNT, 3);
         sui::transfer::public_transfer(refund2, PARTICIPANT2);
         
@@ -793,6 +891,8 @@ module showup::showup_tests {
     #[test]
     fun test_claim_pending_stake_after_registration_ended() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event with registration end time in the past
@@ -813,18 +913,23 @@ module showup::showup_tests {
         // Participant requests to join (before registration ends)
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::request_to_join(&mut event, coin, ctx);
+        showup::request_to_join(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify participant has pending request
         assert!(showup::has_pending_request(&event, PARTICIPANT1), 0);
         assert!(showup::get_pending_vault_balance(&event) == STAKE_AMOUNT, 1);
         
         // Set registration end time to past so participant can claim their stake
-        showup::set_registration_end_time(&mut event, 0); // Set to past time
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);        showup::set_registration_end_time(&mut event, 0); // Set to past time
         
         // Participant claims their stake back
-        let refund = showup::claim_pending_stake(&mut event, ctx);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let refund = showup::claim_pending_stake(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&refund) == STAKE_AMOUNT, 2);
         sui::transfer::public_transfer(refund, PARTICIPANT1);
         
@@ -840,6 +945,8 @@ module showup::showup_tests {
     #[test]
     fun test_total_pot_lazy_initialization_fix() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create event with 3 participants
@@ -860,23 +967,31 @@ module showup::showup_tests {
         // 3 participants join
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin3 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin3, ctx);
+        showup::join_event(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // One participant withdraws (forfeits stake)
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::withdraw_from_event(&mut event, ctx);
+        showup::withdraw_from_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // End event
         showup::set_end_time(&mut event, 0);
@@ -886,16 +1001,20 @@ module showup::showup_tests {
         
         // First participant claims (should trigger total_pot initialization)
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout1 = showup::claim(&mut event, ctx);
+        let payout1 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Should get 1/2 of total pot (3 * STAKE_AMOUNT / 2 remaining participants)
         assert!(coin::value(&payout1) == expected_total_pot / 2, 0);
         sui::transfer::public_transfer(payout1, PARTICIPANT1);
         
         // Second participant claims (should use same total_pot value)
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout2 = showup::claim(&mut event, ctx);
+        let payout2 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Should also get 1/2 of total pot (same amount as first participant)
         assert!(coin::value(&payout2) == expected_total_pot / 2, 1);
         sui::transfer::public_transfer(payout2, PARTICIPANT3);
@@ -911,6 +1030,8 @@ module showup::showup_tests {
     #[test]
     fun test_remainder_distribution_no_attendees() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create event with 3 participants, total pot will be 1000 (not divisible by 3)
@@ -931,18 +1052,24 @@ module showup::showup_tests {
         // 3 participants join (total pot = 3000)
         let coin1 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin3 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin3, ctx);
+        showup::join_event(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // End event
         showup::set_end_time(&mut event, 0);
@@ -950,20 +1077,26 @@ module showup::showup_tests {
         // Expected: 3000 / 3 = 1000 base, remainder = 0
         // All should get exactly 1000
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout1 = showup::claim(&mut event, ctx);
+        let payout1 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout1) == 1000, 0);
         sui::transfer::public_transfer(payout1, PARTICIPANT1);
         
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout2 = showup::claim(&mut event, ctx);
+        let payout2 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout2) == 1000, 1);
         sui::transfer::public_transfer(payout2, PARTICIPANT2);
         
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout3 = showup::claim(&mut event, ctx);
+        let payout3 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout3) == 1000, 2);
         sui::transfer::public_transfer(payout3, PARTICIPANT3);
         
@@ -978,6 +1111,8 @@ module showup::showup_tests {
     #[test]
     fun test_remainder_distribution_with_remainder() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create event with 3 participants, total pot will be 1001 (not divisible by 3)
@@ -998,23 +1133,31 @@ module showup::showup_tests {
         // 3 participants join, then one withdraws (total pot = 3000, 2 participants remain)
         let coin1 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin3 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin3, ctx);
+        showup::join_event(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Participant 3 withdraws (forfeits stake, total pot remains 3000, 2 participants remain)
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::withdraw_from_event(&mut event, ctx);
+        showup::withdraw_from_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // End event
         showup::set_end_time(&mut event, 0);
@@ -1022,14 +1165,18 @@ module showup::showup_tests {
         // Expected: 3000 / 2 = 1500 base, remainder = 0
         // Both should get exactly 1500
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout1 = showup::claim(&mut event, ctx);
+        let payout1 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout1) == 1500, 0);
         sui::transfer::public_transfer(payout1, PARTICIPANT1);
         
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout2 = showup::claim(&mut event, ctx);
+        let payout2 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout2) == 1500, 1);
         sui::transfer::public_transfer(payout2, PARTICIPANT2);
         
@@ -1044,6 +1191,8 @@ module showup::showup_tests {
     #[test]
     fun test_remainder_distribution_uneven_split() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create event with 5 participants, total pot will be 1003 (not divisible by 5)
@@ -1064,37 +1213,51 @@ module showup::showup_tests {
         // 5 participants join, then 2 withdraw (total pot = 5000, 3 participants remain)
         let coin1 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, @0x4);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, @0x5);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin3 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, @0x6);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin3, ctx);
+        showup::join_event(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin4 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, @0x7);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin4, ctx);
+        showup::join_event(&mut event, coin4, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin5 = coin::mint_for_testing<SUI>(1000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, @0x8);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin5, ctx);
+        showup::join_event(&mut event, coin5, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // 2 participants withdraw (forfeits stake, total pot remains 5000, 3 participants remain)
         test_scenario::next_tx(&mut scenario, @0x7);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::withdraw_from_event(&mut event, ctx);
+        showup::withdraw_from_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         test_scenario::next_tx(&mut scenario, @0x8);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::withdraw_from_event(&mut event, ctx);
+        showup::withdraw_from_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // End event
         showup::set_end_time(&mut event, 0);
@@ -1102,20 +1265,26 @@ module showup::showup_tests {
         // Expected: 5000 / 3 = 1666 base, remainder = 2
         // First 2 claimers get 1667, third gets 1666
         test_scenario::next_tx(&mut scenario, @0x4);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout1 = showup::claim(&mut event, ctx);
+        let payout1 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout1) == 1667, 0); // First claimer gets base + 1
         sui::transfer::public_transfer(payout1, @0x4);
         
         test_scenario::next_tx(&mut scenario, @0x5);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout2 = showup::claim(&mut event, ctx);
+        let payout2 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout2) == 1667, 1); // Second claimer gets base + 1
         sui::transfer::public_transfer(payout2, @0x5);
         
         test_scenario::next_tx(&mut scenario, @0x6);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout3 = showup::claim(&mut event, ctx);
+        let payout3 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         assert!(coin::value(&payout3) == 1666, 2); // Third claimer gets base amount
         sui::transfer::public_transfer(payout3, @0x6);
         
@@ -1131,6 +1300,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_ORGANIZER_CANNOT_PARTICIPATE)]
     fun test_organizer_cannot_join_public_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create public event
@@ -1150,7 +1321,9 @@ module showup::showup_tests {
         
         // Try to join as organizer (should fail)
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
-        showup::join_event(&mut event, coin, test_scenario::ctx(&mut scenario));
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        showup::join_event(&mut event, coin, &clock, test_scenario::ctx(&mut scenario));
+        test_scenario::return_shared(clock);
         
         // Clean up (this won't be reached due to expected failure, but needed for compilation)
         showup::destroy_event(event);
@@ -1161,6 +1334,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_ORGANIZER_CANNOT_PARTICIPATE)]
     fun test_organizer_cannot_request_private_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create private event
@@ -1180,7 +1355,9 @@ module showup::showup_tests {
         
         // Try to request to join as organizer (should fail)
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
-        showup::request_to_join(&mut event, coin, test_scenario::ctx(&mut scenario));
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        showup::request_to_join(&mut event, coin, &clock, test_scenario::ctx(&mut scenario));
+        test_scenario::return_shared(clock);
         
         // Clean up (this won't be reached due to expected failure, but needed for compilation)
         showup::destroy_event(event);
@@ -1191,6 +1368,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_EVENT_NOT_ENDED)]
     fun test_claim_event_not_ended() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         // Create event with future end time
@@ -1211,8 +1390,10 @@ module showup::showup_tests {
         // Add participant and mark as attended
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -1220,8 +1401,10 @@ module showup::showup_tests {
         
         // Try to claim before event ended
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout = showup::claim(&mut event, ctx);
+        let payout = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Transfer payout to avoid drop error (this line won't execute due to expected failure)
         sui::transfer::public_transfer(payout, PARTICIPANT1);
         
@@ -1234,6 +1417,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_DID_NOT_ATTEND)]
     fun test_claim_did_not_attend() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = create_ended_event(ctx);
@@ -1241,13 +1426,17 @@ module showup::showup_tests {
         // Add two participants
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Mark only PARTICIPANT1 as attended
         test_scenario::next_tx(&mut scenario, ORGANIZER);
@@ -1256,8 +1445,10 @@ module showup::showup_tests {
         
         // PARTICIPANT2 tries to claim without being marked as attended
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout = showup::claim(&mut event, ctx);
+        let payout = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Transfer payout to avoid drop error (this line won't execute due to expected failure)
         sui::transfer::public_transfer(payout, PARTICIPANT2);
         
@@ -1269,6 +1460,8 @@ module showup::showup_tests {
     #[test]
     fun test_capacity_checking() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1288,13 +1481,17 @@ module showup::showup_tests {
         // Add participants up to capacity
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify capacity is reached
         assert!(showup::get_participants_count(&event) == 2, 0);
@@ -1309,6 +1506,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_CAPACITY_EXCEEDED)]
     fun test_capacity_exceeded() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1328,19 +1527,25 @@ module showup::showup_tests {
         // Fill up capacity
         let coin1 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin1, ctx);
+        showup::join_event(&mut event, coin1, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         let coin2 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT2);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin2, ctx);
+        showup::join_event(&mut event, coin2, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Try to exceed capacity
         let coin3 = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT3);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin3, ctx);
+        showup::join_event(&mut event, coin3, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Clean up
         showup::destroy_event(event);
@@ -1350,6 +1555,8 @@ module showup::showup_tests {
     #[test]
     fun test_cancel_event() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1367,7 +1574,10 @@ module showup::showup_tests {
         );
         
         // Cancel event (before start time)
-        showup::cancel_event(&mut event, ctx);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::cancel_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify event is cancelled
         assert!(showup::is_cancelled(&event), 0);
@@ -1381,6 +1591,8 @@ module showup::showup_tests {
     #[test]
     fun test_refund_after_cancellation() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1400,18 +1612,25 @@ module showup::showup_tests {
         // Add participant
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Cancel event
         test_scenario::next_tx(&mut scenario, ORGANIZER);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::cancel_event(&mut event, ctx);
+        showup::cancel_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Participant gets refund
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
         let ctx = test_scenario::ctx(&mut scenario);
-        let refund = showup::refund(&mut event, ctx);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let refund = showup::refund(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Verify refund amount before transferring
         assert!(coin::value(&refund) == STAKE_AMOUNT, 0);
@@ -1428,6 +1647,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_NOT_ORGANIZER)]
     fun test_cancel_event_not_organizer() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1446,8 +1667,10 @@ module showup::showup_tests {
         
         // Try to cancel as non-organizer
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::cancel_event(&mut event, ctx);
+        showup::cancel_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Clean up
         showup::destroy_event(event);
@@ -1458,6 +1681,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_EVENT_ALREADY_STARTED)]
     fun test_cancel_event_after_start() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1475,7 +1700,10 @@ module showup::showup_tests {
         );
         
         // Try to cancel after start time
-        showup::cancel_event(&mut event, ctx);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::cancel_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Clean up
         showup::destroy_event(event);
@@ -1486,6 +1714,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_EVENT_NOT_CANCELLED)]
     fun test_refund_event_not_cancelled() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1505,11 +1735,16 @@ module showup::showup_tests {
         // Add participant
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
-        // Try to refund without cancelling
-        let refund = showup::refund(&mut event, ctx);
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);        // Try to refund without cancelling
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let refund = showup::refund(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Transfer refund to avoid drop error (this line won't execute due to expected failure)
         sui::transfer::public_transfer(refund, PARTICIPANT1);
         
@@ -1522,6 +1757,8 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_NOT_PARTICIPANT)]
     fun test_refund_not_participant() {
         let mut scenario = test_scenario::begin(ORGANIZER);
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
         
         let mut event = showup::create_event_for_testing(
@@ -1539,12 +1776,18 @@ module showup::showup_tests {
         );
         
         // Cancel event
-        showup::cancel_event(&mut event, ctx);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        showup::cancel_event(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         // Try to refund as non-participant
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
         let ctx = test_scenario::ctx(&mut scenario);
-        let refund = showup::refund(&mut event, ctx);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let refund = showup::refund(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Transfer refund to avoid drop error (this line won't execute due to expected failure)
         sui::transfer::public_transfer(refund, PARTICIPANT1);
         
@@ -1557,15 +1800,18 @@ module showup::showup_tests {
     #[expected_failure(abort_code = E_ALREADY_CLAIMED)]
     fun test_double_claim() {
         let mut scenario = test_scenario::begin(ORGANIZER);
-        let ctx = test_scenario::ctx(&mut scenario);
-        
+        setup_clock(&mut scenario);
+        test_scenario::next_tx(&mut scenario, ORGANIZER);
+        let ctx = test_scenario::ctx(&mut scenario);        
         let mut event = create_ended_event(ctx);
         
         // Add participant and mark as attended
         let coin = coin::mint_for_testing<SUI>(STAKE_AMOUNT, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        showup::join_event(&mut event, coin, ctx);
+        showup::join_event(&mut event, coin, &clock, ctx);
+        test_scenario::return_shared(clock);
         
         test_scenario::next_tx(&mut scenario, ORGANIZER);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -1573,12 +1819,17 @@ module showup::showup_tests {
         
         // First claim
         test_scenario::next_tx(&mut scenario, PARTICIPANT1);
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
         let ctx = test_scenario::ctx(&mut scenario);
-        let payout1 = showup::claim(&mut event, ctx);
+        let payout1 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         sui::transfer::public_transfer(payout1, PARTICIPANT1);
         
-        // Try to claim again
-        let payout2 = showup::claim(&mut event, ctx);
+        test_scenario::next_tx(&mut scenario, PARTICIPANT1);        // Try to claim again
+        let clock = test_scenario::take_shared<Clock>(&mut scenario);
+        let ctx = test_scenario::ctx(&mut scenario);
+        let payout2 = showup::claim(&mut event, &clock, ctx);
+        test_scenario::return_shared(clock);
         // Transfer payout to avoid drop error (this line won't execute due to expected failure)
         sui::transfer::public_transfer(payout2, PARTICIPANT1);
         
