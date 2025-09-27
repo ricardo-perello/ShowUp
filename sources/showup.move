@@ -66,11 +66,11 @@ module showup::showup {
             vault: balance::zero<SUI>(),
         };
         
-        // Transfer the event to the organizer
-        sui::transfer::public_transfer(event, sui::tx_context::sender(ctx));
+        // Make the event a shared object so anyone can join
+        sui::transfer::share_object(event);
     }
 
-    public fun join_event(
+    public entry fun join_event(
         event: &mut Event,
         _coins: Coin<SUI>,
         ctx: &mut sui::tx_context::TxContext
@@ -95,11 +95,13 @@ module showup::showup {
         let sui_balance = coin::into_balance(_coins);
         balance::join(&mut event.vault, sui_balance);
 
-        // Add participant (aborts if already joined)
-        table::add(&mut event.participants, sender, true);
+        // Add participant (only if not already joined)
+        if (!table::contains(&event.participants, sender)) {
+            table::add(&mut event.participants, sender, true);
+        };
     }
 
-    public fun mark_attended(
+    public entry fun mark_attended(
         event: &mut Event,
         participant: address,
         ctx: &sui::tx_context::TxContext
@@ -107,8 +109,10 @@ module showup::showup {
         assert!(sui::tx_context::sender(ctx) == event.organizer, E_NOT_ORGANIZER);
         // Only participants can be marked as attended (avoid accidental scans)
         assert!(table::contains(&event.participants, participant), E_NOT_PARTICIPANT);
-        // Add attendee (aborts if already marked)
-        table::add(&mut event.attendees, participant, true);
+        // Add attendee (only if not already marked)
+        if (!table::contains(&event.attendees, participant)) {
+            table::add(&mut event.attendees, participant, true);
+        };
     }
 
     public fun claim(
@@ -126,7 +130,9 @@ module showup::showup {
         assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
 
         // Mark claimed first (protect against reentrancy-style patterns)
-        table::add(&mut event.claimed, sender, true);
+        if (!table::contains(&event.claimed, sender)) {
+            table::add(&mut event.claimed, sender, true);
+        };
 
         // Equal split across attendees
         let n_attendees = table::length(&event.attendees);
@@ -136,7 +142,7 @@ module showup::showup {
         coin::from_balance(payout_bal, ctx)
     }
 
-    public fun cancel_event(
+    public entry fun cancel_event(
         event: &mut Event,
         ctx: &mut sui::tx_context::TxContext
     ) {
@@ -163,7 +169,9 @@ module showup::showup {
         assert!(!table::contains(&event.claimed, sender), E_ALREADY_CLAIMED);
         
         // Mark claimed to block double-withdrawal
-        table::add(&mut event.claimed, sender, true);
+        if (!table::contains(&event.claimed, sender)) {
+            table::add(&mut event.claimed, sender, true);
+        };
         
         // Fixed refund = stake amount
         let refund_balance = balance::split(&mut event.vault, event.stake_amount);
