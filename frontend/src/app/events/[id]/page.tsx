@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
-import { ArrowLeft, Calendar, MapPin, Users, Clock, Coins, QrCode } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Users, Clock, Coins, QrCode, CheckCircle, AlertCircle, Loader2, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
@@ -16,7 +16,7 @@ export default function EventDetailsPage() {
   const params = useParams();
   const eventId = params.id as string;
   
-  const { joinEvent, requestToJoin, acceptRequests, rejectRequests, withdrawFromEvent, claimPendingStake, markAttendance, claim, refund, getUserSUICoins, loading, error } = useShowUpTransactions();
+  const { joinEvent, requestToJoin, acceptRequests, rejectRequests, withdrawFromEvent, claimPendingStake, markAttendance, claim, refund, cancelEvent, getUserSUICoins, loading, error } = useShowUpTransactions();
   const [event, setEvent] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
@@ -26,8 +26,15 @@ export default function EventDetailsPage() {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isClaimingPending, setIsClaimingPending] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [pendingRequests, setPendingRequests] = useState<string[]>([]);
+  
+  // Dashboard state
+  const [activeTab, setActiveTab] = useState<'participants' | 'requests' | 'attendees'>('participants');
+  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
+  const [isAcceptingRequests, setIsAcceptingRequests] = useState(false);
+  const [isRejectingRequests, setIsRejectingRequests] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -192,43 +199,6 @@ export default function EventDetailsPage() {
     }
   };
 
-  // NEW: Accept requests (organizer only)
-  const handleAcceptRequests = async () => {
-    if (!account || selectedParticipants.length === 0) return;
-
-    setIsMarkingAttendance(true);
-    try {
-      const result = await acceptRequests(eventId, selectedParticipants);
-      alert(`Requests accepted! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
-      
-      // Refresh event data
-      window.location.reload();
-    } catch (err) {
-      console.error('Error accepting requests:', err);
-      alert(`Failed to accept requests: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsMarkingAttendance(false);
-    }
-  };
-
-  // NEW: Reject requests (organizer only)
-  const handleRejectRequests = async () => {
-    if (!account || selectedParticipants.length === 0) return;
-
-    setIsMarkingAttendance(true);
-    try {
-      const result = await rejectRequests(eventId, selectedParticipants);
-      alert(`Requests rejected! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
-      
-      // Refresh event data
-      window.location.reload();
-    } catch (err) {
-      console.error('Error rejecting requests:', err);
-      alert(`Failed to reject requests: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsMarkingAttendance(false);
-    }
-  };
 
   // NEW: Withdraw from event
   const handleWithdraw = async () => {
@@ -284,6 +254,69 @@ export default function EventDetailsPage() {
       alert(`Failed to mark attendance: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsMarkingAttendance(false);
+    }
+  };
+
+  // NEW: Accept requests (organizer only)
+  const handleAcceptRequests = async () => {
+    if (!account || selectedRequests.length === 0) return;
+
+    setIsAcceptingRequests(true);
+    try {
+      const result = await acceptRequests(eventId, selectedRequests);
+      alert(`Requests accepted! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
+      
+      // Clear selection and refresh event data
+      setSelectedRequests([]);
+      window.location.reload();
+    } catch (err) {
+      console.error('Error accepting requests:', err);
+      alert(`Failed to accept requests: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsAcceptingRequests(false);
+    }
+  };
+
+  // NEW: Reject requests (organizer only)
+  const handleRejectRequests = async () => {
+    if (!account || selectedRequests.length === 0) return;
+
+    setIsRejectingRequests(true);
+    try {
+      const result = await rejectRequests(eventId, selectedRequests);
+      alert(`Requests rejected! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
+      
+      // Clear selection and refresh event data
+      setSelectedRequests([]);
+      window.location.reload();
+    } catch (err) {
+      console.error('Error rejecting requests:', err);
+      alert(`Failed to reject requests: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsRejectingRequests(false);
+    }
+  };
+
+  // NEW: Cancel event (organizer only)
+  const handleCancelEvent = async () => {
+    if (!account) return;
+
+    if (!confirm('Are you sure you want to cancel this event? This action cannot be undone and all participants will be able to get refunds.')) {
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      const result = await cancelEvent(eventId);
+      alert(`Event cancelled! Transaction: ${(result as unknown as { transactionId?: string })?.transactionId || 'pending'}`);
+      
+      // Refresh event data
+      window.location.reload();
+    } catch (err) {
+      console.error('Error cancelling event:', err);
+      alert(`Failed to cancel event: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -432,7 +465,7 @@ export default function EventDetailsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Event Details */}
           <div className="bg-white rounded-lg shadow-lg p-6">
@@ -591,8 +624,9 @@ export default function EventDetailsPage() {
                 <Button 
                   onClick={handleRefund} 
                   disabled={isRefunding}
-                  className="w-full"
+                  className="w-full bg-orange-600 hover:bg-orange-700"
                 >
+                  <Coins className="h-4 w-4 mr-2" />
                   {isRefunding ? 'Refunding...' : 'Get Refund'}
                 </Button>
               )}
@@ -618,6 +652,18 @@ export default function EventDetailsPage() {
                       Organizer Dashboard
                     </Button>
                   </Link>
+                  
+                  {/* Cancel Event button - only show if event hasn't ended and not already cancelled */}
+                  {eventStatus !== 'ended' && !isCancelled && (
+                    <Button 
+                      onClick={handleCancelEvent} 
+                      disabled={isCancelling}
+                      className="w-full bg-red-600 hover:bg-red-700"
+                    >
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      {isCancelling ? 'Cancelling...' : 'Cancel Event'}
+                    </Button>
+                  )}
                   
                   {/* Mark Attendance button - only show if event hasn't ended */}
                   {eventStatus !== 'ended' && (
@@ -697,6 +743,263 @@ export default function EventDetailsPage() {
                   <p>• Event Status: {isCancelled ? 'Cancelled' : eventStatus === 'ended' ? 'Ended' : eventStatus === 'ongoing' ? 'In Progress' : 'Not Started'}</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Organizer Dashboard - Right Column */}
+          {isOrganizer && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Organizer Dashboard</h2>
+              
+              {/* Dashboard Tabs */}
+              <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setActiveTab('participants')}
+                  className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === 'participants'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Participants ({(event.participants as string[])?.length || 0})
+                </button>
+                <button
+                  onClick={() => setActiveTab('requests')}
+                  className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === 'requests'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Requests ({pendingRequests.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('attendees')}
+                  className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === 'attendees'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Attendees ({(event.attendees as string[])?.length || 0})
+                </button>
+              </div>
+
+              {/* Participants Tab */}
+              {activeTab === 'participants' && (
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Participants</h3>
+                    {selectedParticipants.length > 0 && eventStatus !== 'ended' && (
+                      <Button
+                        onClick={handleMarkAttendance}
+                        disabled={isMarkingAttendance}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isMarkingAttendance ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Marking...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Mark Selected as Attended ({selectedParticipants.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {(event.participants as string[])?.map((address, index) => {
+                      const isAttendee = (event.attendees as string[])?.includes(address) || false;
+                      const hasClaimed = (event.claimed as string[])?.includes(address) || false;
+                      const isSelected = selectedParticipants.includes(address);
+                      
+                      return (
+                        <div
+                          key={address}
+                          className={`flex items-center justify-between p-3 border rounded-lg ${
+                            isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedParticipants([...selectedParticipants, address]);
+                                } else {
+                                  setSelectedParticipants(selectedParticipants.filter(addr => addr !== address));
+                                }
+                              }}
+                              disabled={eventStatus === 'ended'}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {address.slice(0, 6)}...{address.slice(-4)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatSUI(event.stake_amount)} SUI • {isAttendee ? 'Attended' : 'Not Attended'} • {hasClaimed ? 'Claimed' : 'Not Claimed'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {isAttendee && (
+                              <CheckCircle className="h-5 w-5 text-green-500" />
+                            )}
+                            {hasClaimed && (
+                              <Coins className="h-5 w-5 text-yellow-500" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Requests Tab */}
+              {activeTab === 'requests' && (
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Pending Requests</h3>
+                    {selectedRequests.length > 0 && eventStatus !== 'ended' && (
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={handleAcceptRequests}
+                          disabled={isAcceptingRequests}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {isAcceptingRequests ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Accepting...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Accept Selected ({selectedRequests.length})
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          onClick={handleRejectRequests}
+                          disabled={isRejectingRequests}
+                          variant="outline"
+                          className="border-red-300 text-red-700 hover:bg-red-50"
+                        >
+                          {isRejectingRequests ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Rejecting...
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="h-4 w-4 mr-2" />
+                              Reject Selected ({selectedRequests.length})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {pendingRequests.map((address, index) => {
+                      const isSelected = selectedRequests.includes(address);
+                      
+                      return (
+                        <div
+                          key={address}
+                          className={`flex items-center justify-between p-3 border rounded-lg ${
+                            isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedRequests([...selectedRequests, address]);
+                                } else {
+                                  setSelectedRequests(selectedRequests.filter(addr => addr !== address));
+                                }
+                              }}
+                              disabled={eventStatus === 'ended'}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {address.slice(0, 6)}...{address.slice(-4)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatSUI(event.stake_amount)} SUI • Pending Approval
+                              </p>
+                            </div>
+                          </div>
+                          <AlertCircle className="h-5 w-5 text-yellow-500" />
+                        </div>
+                      );
+                    })}
+                    
+                    {pendingRequests.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <UserPlus className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No pending requests</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Attendees Tab */}
+              {activeTab === 'attendees' && (
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Attendees</h3>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {(event.attendees as string[])?.map((address, index) => {
+                      const hasClaimed = (event.claimed as string[])?.includes(address) || false;
+                      
+                      return (
+                        <div
+                          key={address}
+                          className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {address.slice(0, 6)}...{address.slice(-4)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatSUI(event.stake_amount)} SUI • {hasClaimed ? 'Claimed Rewards' : 'Not Claimed'}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            {hasClaimed && (
+                              <Coins className="h-5 w-5 text-yellow-500" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {((event.attendees as string[])?.length || 0) === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No attendees yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

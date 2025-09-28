@@ -16,6 +16,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [participantStatus, setParticipantStatus] = useState<Record<string, boolean>>({});
+  const [pendingRequests, setPendingRequests] = useState<Record<string, string[]>>({});
 
   const checkParticipantStatus = useCallback(async (eventId: string) => {
     if (!account?.address) {
@@ -38,6 +39,37 @@ export default function EventsPage() {
     }
   }, [account?.address, suiClient]);
 
+  const checkPendingRequests = useCallback(async (eventId: string) => {
+    if (!account?.address || !suiClient) {
+      console.log('🔍 No account or SuiClient available for pending requests check');
+      return [];
+    }
+    
+    try {
+      const eventData = await suiClient.getObject({
+        id: eventId,
+        options: { showContent: true, showType: true }
+      });
+
+      if (!eventData.data?.content || !('fields' in eventData.data.content)) {
+        console.log('🔍 Event not found for pending requests check');
+        return [];
+      }
+
+      const eventFields = eventData.data.content.fields as Record<string, unknown>;
+      
+      // Parse VecMap to extract pending requests
+      const pendingRequestsVecMap = eventFields.pending_requests as { fields?: { contents?: Array<{ fields: { key: string; value: boolean } }> } } | undefined;
+      const pendingRequestsArray = pendingRequestsVecMap?.fields?.contents?.map(entry => entry.fields.key) || [];
+      
+      setPendingRequests(prev => ({ ...prev, [eventId]: pendingRequestsArray }));
+      return pendingRequestsArray;
+    } catch (error) {
+      console.error('Error checking pending requests:', error);
+      return [];
+    }
+  }, [account?.address, suiClient]);
+
   const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     
@@ -45,10 +77,11 @@ export default function EventsPage() {
       const fetchedEvents = await getAllEventsGlobal();
       setEvents(fetchedEvents);
       
-      // Check participant status for each event
+      // Check participant status and pending requests for each event
       if (account?.address && suiClient) {
         for (const event of fetchedEvents) {
-          checkParticipantStatus(event.id);
+          await checkParticipantStatus(event.id);
+          await checkPendingRequests(event.id);
         }
       }
     } catch (error) {
@@ -58,7 +91,7 @@ export default function EventsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [getAllEventsGlobal, account?.address, suiClient, checkParticipantStatus]);
+  }, [getAllEventsGlobal, account?.address, suiClient, checkParticipantStatus, checkPendingRequests]);
 
   useEffect(() => {
     // Only fetch events when we have both account and suiClient
@@ -147,6 +180,7 @@ export default function EventsPage() {
     const isOrganizerOfEvent = isOrganizer(event);
     const participantCount = Array.isArray(event.participants) ? event.participants.length : 0;
     const isFull = participantCount >= parseInt(event.capacity);
+    const hasPendingRequest = pendingRequests[event.id]?.includes(account?.address || '') || false;
     
     // Can request to join if:
     // 1. Event is private (mustRequestToJoin = true)
@@ -154,11 +188,13 @@ export default function EventsPage() {
     // 3. Not the organizer
     // 4. Registration is still open (upcoming status)
     // 5. Not at capacity
+    // 6. Not already requested
     const canRequest = event.mustRequestToJoin && 
                       !isParticipantAlready && 
                       !isOrganizerOfEvent && 
                       status === 'upcoming' && 
-                      !isFull;
+                      !isFull &&
+                      !hasPendingRequest;
     
     return canRequest;
   };

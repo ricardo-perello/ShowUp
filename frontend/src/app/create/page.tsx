@@ -64,10 +64,15 @@ export default function CreateEvent() {
       // Event created successfully!
       console.log('Event created:', result);
       const eventResult = result as { eventId: string; transactionId: string; message: string };
-      alert(`Event created successfully! Event ID: ${eventResult.eventId}`);
       
-      // Redirect to the created event
-      router.push(`/events/${eventResult.eventId}`);
+      if (eventResult.eventId === 'pending') {
+        alert('Event creation is still processing. Please check the events page in a moment.');
+        router.push('/events');
+      } else {
+        alert(`Event created successfully! Event ID: ${eventResult.eventId}`);
+        // Redirect to the created event
+        router.push(`/events/${eventResult.eventId}`);
+      }
     } catch (error) {
       console.error('Error creating event:', error);
     }
@@ -116,10 +121,15 @@ export default function CreateEvent() {
 
       console.log('Funded mock event created:', result);
       const eventResult = result as { eventId: string; transactionId: string; message: string };
-      alert(`Funded mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- ${participantCount} participants, ${attendeeCount} attendees\n- ${stakeAmount} SUI stake each = ${participantFundAmount} SUI total\n- Expected reward per attendee: ${participantFundAmount / attendeeCount} SUI`);
       
-      // Redirect to the created event
-      router.push(`/events/${eventResult.eventId}`);
+      if (eventResult.eventId === 'pending') {
+        alert('Event creation is still processing. Please check the events page in a moment.');
+        router.push('/events');
+      } else {
+        alert(`Funded mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- ${participantCount} participants, ${attendeeCount} attendees\n- ${stakeAmount} SUI stake each = ${participantFundAmount} SUI total\n- Expected reward per attendee: ${participantFundAmount / attendeeCount} SUI`);
+        // Redirect to the created event
+        router.push(`/events/${eventResult.eventId}`);
+      }
     } catch (error) {
       console.error('Error creating funded mock event:', error);
     }
@@ -134,10 +144,15 @@ export default function CreateEvent() {
       
       console.log('Private mock event created:', result);
       const eventResult = result as { eventId: string; transactionId: string; message: string };
-      alert(`Private mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- Private event (must request to join)\n- Capacity: 3\n- 2 participants: 0x1...1, 0x2...2\n- 1 attendee: 0x1...1\n- 1 pending request: 0x3...3\n\nYou can now test the request workflow!`);
       
-      // Navigate to the event page
-      router.push(`/events/${eventResult.eventId}`);
+      if (eventResult.eventId === 'pending') {
+        alert('Event creation is still processing. Please check the events page in a moment.');
+        router.push('/events');
+      } else {
+        alert(`Private mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- Private event (must request to join)\n- Capacity: 3\n- 2 participants: 0x1...1, 0x2...2\n- 1 attendee: 0x1...1\n- 1 pending request: 0x3...3\n\nYou can now test the request workflow!`);
+        // Navigate to the event page
+        router.push(`/events/${eventResult.eventId}`);
+      }
     } catch (error) {
       console.error('Error creating private mock event:', error);
       alert(`Failed to create private mock event: ${error instanceof Error ? error.message : 'Unknown error'}`);

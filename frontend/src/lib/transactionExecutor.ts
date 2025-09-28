@@ -87,16 +87,13 @@ export class TransactionExecutor {
   claimTransaction(eventId: string, sender: string) {
     const tx = new Transaction();
     
-    const [coin] = tx.moveCall({
-      target: `${this.packageId}::showup::claim`,
+    tx.moveCall({
+      target: `${this.packageId}::showup::claim_entry`,
       arguments: [
         tx.object(eventId),
         tx.object('0x6'), // Clock object at address 0x6
       ],
     });
-
-    // Transfer the claimed coin back to user
-    tx.transferObjects([coin], tx.pure.address(sender));
 
     // Set gas budget
     tx.setGasBudget(100000000); // 0.1 SUI in MIST
@@ -108,16 +105,13 @@ export class TransactionExecutor {
   refundTransaction(eventId: string, sender: string) {
     const tx = new Transaction();
     
-    const [coin] = tx.moveCall({
-      target: `${this.packageId}::showup::refund`,
+    tx.moveCall({
+      target: `${this.packageId}::showup::refund_entry`,
       arguments: [
         tx.object(eventId),
         tx.object('0x6'), // Clock object at address 0x6
       ],
     });
-
-    // Transfer the refunded coin back to user
-    tx.transferObjects([coin], tx.pure.address(sender));
 
     // Set gas budget
     tx.setGasBudget(100000000); // 0.1 SUI in MIST
@@ -260,7 +254,7 @@ export class TransactionExecutor {
     const tx = new Transaction();
     
     tx.moveCall({
-      target: `${this.packageId}::showup::claim_pending_stake`,
+      target: `${this.packageId}::showup::claim_pending_stake_entry`,
       arguments: [
         tx.object(eventId),
         tx.object('0x6'), // Clock object at address 0x6
@@ -431,6 +425,8 @@ export class TransactionExecutor {
 
     return tx;
   }
+
+
 }
 
 // Create executor instance

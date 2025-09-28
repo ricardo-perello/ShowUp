@@ -110,16 +110,36 @@ export function useShowUpTransactions() {
             console.log('✅ Create event transaction result:', result);
             // Extract event ID from the transaction result
             let eventId = 'pending';
+            console.log('🔍 Extracting event ID from result:', result);
+            
             if (result.effects && typeof result.effects === 'object' && 'created' in result.effects) {
-              // Find the Event object in created objects
               const createdObjects = (result.effects as Record<string, unknown>).created;
+              console.log('🔍 Created objects:', createdObjects);
+              
               if (Array.isArray(createdObjects)) {
                 for (const obj of createdObjects) {
-                  if (obj.reference && obj.reference.objectId) {
-                    // This is likely the Event object
-                    eventId = obj.reference.objectId;
-                    break;
+                  console.log('🔍 Checking object:', obj);
+                  if (obj && typeof obj === 'object' && 'reference' in obj) {
+                    const ref = (obj as { reference: { objectId?: string } }).reference;
+                    if (ref && ref.objectId) {
+                      eventId = ref.objectId;
+                      console.log('✅ Found event ID:', eventId);
+                      break;
+                    }
                   }
+                }
+              }
+            }
+            
+            // If we still don't have a valid event ID, try to get it from objectChanges
+            if (eventId === 'pending' && result.objectChanges) {
+              console.log('🔍 Trying objectChanges:', result.objectChanges);
+              const objectChanges = result.objectChanges as Array<{ type: string; objectId?: string; objectType?: string }>;
+              for (const change of objectChanges) {
+                if (change.type === 'created' && change.objectType && change.objectType.includes('Event')) {
+                  eventId = change.objectId || 'pending';
+                  console.log('✅ Found event ID from objectChanges:', eventId);
+                  break;
                 }
               }
             }
@@ -245,12 +265,24 @@ export function useShowUpTransactions() {
 
       console.log('📝 Join event transaction created, executing...');
 
-      // Execute the transaction and return the result
-      const result = await signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Join event transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Successfully joined event!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Join event transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return result;
     } catch (err) {
       handleError(err);
       throw err;
@@ -381,15 +413,24 @@ export function useShowUpTransactions() {
     try {
       const tx = transactionExecutor.cancelEventTransaction(eventId);
 
-      // Execute the transaction
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Cancel event transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Event cancelled successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Cancel event transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Transaction submitted! Check your wallet for confirmation.',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -902,16 +943,36 @@ export function useShowUpTransactions() {
             console.log('✅ Create funded mock event transaction result:', result);
             // Extract event ID from the transaction result
             let eventId = 'pending';
+            console.log('🔍 Extracting event ID from result:', result);
+            
             if (result.effects && typeof result.effects === 'object' && 'created' in result.effects) {
-              // Find the Event object in created objects
               const createdObjects = (result.effects as Record<string, unknown>).created;
+              console.log('🔍 Created objects:', createdObjects);
+              
               if (Array.isArray(createdObjects)) {
                 for (const obj of createdObjects) {
-                  if (obj.reference && obj.reference.objectId) {
-                    // This is likely the Event object
-                    eventId = obj.reference.objectId;
-                    break;
+                  console.log('🔍 Checking object:', obj);
+                  if (obj && typeof obj === 'object' && 'reference' in obj) {
+                    const ref = (obj as { reference: { objectId?: string } }).reference;
+                    if (ref && ref.objectId) {
+                      eventId = ref.objectId;
+                      console.log('✅ Found event ID:', eventId);
+                      break;
+                    }
                   }
+                }
+              }
+            }
+            
+            // If we still don't have a valid event ID, try to get it from objectChanges
+            if (eventId === 'pending' && result.objectChanges) {
+              console.log('🔍 Trying objectChanges:', result.objectChanges);
+              const objectChanges = result.objectChanges as Array<{ type: string; objectId?: string; objectType?: string }>;
+              for (const change of objectChanges) {
+                if (change.type === 'created' && change.objectType && change.objectType.includes('Event')) {
+                  eventId = change.objectId || 'pending';
+                  console.log('✅ Found event ID from objectChanges:', eventId);
+                  break;
                 }
               }
             }
@@ -1000,18 +1061,36 @@ export function useShowUpTransactions() {
             
             // Extract event ID from the transaction result
             let eventId = 'pending';
+            console.log('🔍 Extracting event ID from result:', result);
+            
             if (result.effects && typeof result.effects === 'object' && 'created' in result.effects) {
-              // Find the Event object in created objects
               const createdObjects = (result.effects as Record<string, unknown>).created;
               console.log('🔍 Created objects:', createdObjects);
+              
               if (Array.isArray(createdObjects)) {
                 for (const obj of createdObjects) {
-                  if (obj.reference && obj.reference.objectId) {
-                    // This is likely the Event object
-                    eventId = (obj.reference as { objectId: string }).objectId;
-                    console.log('🎯 Found event ID:', eventId);
-                    break;
+                  console.log('🔍 Checking object:', obj);
+                  if (obj && typeof obj === 'object' && 'reference' in obj) {
+                    const ref = (obj as { reference: { objectId?: string } }).reference;
+                    if (ref && ref.objectId) {
+                      eventId = ref.objectId;
+                      console.log('✅ Found event ID:', eventId);
+                      break;
+                    }
                   }
+                }
+              }
+            }
+            
+            // If we still don't have a valid event ID, try to get it from objectChanges
+            if (eventId === 'pending' && result.objectChanges) {
+              console.log('🔍 Trying objectChanges:', result.objectChanges);
+              const objectChanges = result.objectChanges as Array<{ type: string; objectId?: string; objectType?: string }>;
+              for (const change of objectChanges) {
+                if (change.type === 'created' && change.objectType && change.objectType.includes('Event')) {
+                  eventId = change.objectId || 'pending';
+                  console.log('✅ Found event ID from objectChanges:', eventId);
+                  break;
                 }
               }
             }
