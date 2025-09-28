@@ -1021,7 +1021,7 @@ export function useShowUpTransactions() {
       console.log('🎯 Creating private mock event...');
       
       // Check SUI balance
-      const requiredAmount = 3 * 1000000000; // 3 SUI total (2 participants + 1 pending)
+      const requiredAmount = 5 * 1000000000; // 5 SUI total (5 participants + 0 pending)
       
       // Get actual coin data to check balance
       const coins = await suiClient.getCoins({
@@ -1044,7 +1044,7 @@ export function useShowUpTransactions() {
       // Create transaction
       const tx = transactionExecutor.createPrivateMockEventTransaction(
         1000000000, // 1 SUI per participant
-        1000000000  // 1 SUI for pending request
+        1000000000  // 1 SUI per pending request
       );
       
       

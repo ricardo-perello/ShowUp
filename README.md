@@ -1,24 +1,50 @@
-# ShowUp - Web3 Event Reservations
+# ShowUp 💧
+## Turn RSVPs into real commitments.
 
-A decentralized event reservations and attendance protocol built on Sui blockchain using Move smart contracts and Next.js frontend.
+Flaky RSVPs and no-shows waste time, money, and energy for organizers and participants alike. ShowUp solves this with a simple mechanism: staking SUI.
 
-## Overview
+When you sign up for an event, you stake a small deposit. If you show up, you get your stake back — plus a share of the no-shows' penalties. If you don't, your stake is redistributed to those who did. Attendance becomes accountability, and commitment is rewarded.
 
-ShowUp enables event organizers to create events where participants stake tokens to join. Organizers can scan QR codes to mark attendance, and attendees can claim their stake plus a share of no-show penalties after the event ends.
+## ✨ Features
 
-## Features
+### For Organizers
+- **Create Events**: Define event name, description, location, time, stake amount, and capacity.
+- **Vault System**: A vault automatically collects all participant stakes.
+- **QR Code Check-in**: Use a QR scanner at the entrance to mark attendees on-chain.
+- **Cancellations**: Cancel events before they start; participants automatically get refunds.
+- **Transparency**: Live view of participants, attendees, and vault balance.
 
-- **Event Creation**: Organizers create events with stake amounts and end times
-- **Token Staking**: Participants join events by staking SUI tokens
-- **QR Code Attendance**: Organizers scan participant QR codes to mark attendance
-- **Reward Distribution**: Attendees claim their stake plus no-show penalties
-- **Web3 Integration**: Built with Sui Wallet Adapter for seamless wallet connection
+### For Participants
+- **Join Events by Staking**: Commit your spot by staking SUI directly in the event's vault.
+- **On-site Check-in**: Show your wallet-generated QR code to prove attendance.
+- **Claim Rewards**: After the event ends, claim your stake back — plus a share of defaulted deposits.
+- **Refunds**: Get your deposit back if the organizer cancels.
+- **My Reservations Dashboard**: See all your upcoming and past events, attendance status, and claims.
+
+### Future Extensions (V2+)
+- **Geofenced Proof-of-Attendance (POAP)**: Trustless check-in based on being at the event's location, without relying on organizers.
+- **Gamification**: Attendance streaks, loyalty scores, and badges.
+- **Integration with Calendars & Socials**: Auto-sync events with calendars and social platforms.
+
+## 🔑 Why It Matters
+- **Incentivized Attendance**: People have real skin in the game.
+- **Reduced No-Shows**: Organizers save money and resources.
+- **Fair Redistribution**: Attendees benefit directly when others don't show.
+- **On-Chain Transparency**: Everything is verifiable and trustless.
+
+## 🛠 Tech Stack
+- **Smart Contracts**: Built in Move on the Sui blockchain.
+- **Frontend**: Next.js + Tailwind + shadcn/ui.
+- **Wallets**: Sui Wallet Adapter / compatible wallets.
+- **QR System**: qrcode.react for generation, react-qr-reader for scanning.
+
+ShowUp makes events more reliable, fun, and fair — powered by Web3 incentives.
 
 ## Architecture
 
 ### Smart Contract (Move)
 - **Module**: `showup::showup`
-- **Deployed Package ID**: `0xcfa197d066b4982c14fde0ba7379ad3bb018f820da4cd161b966cac1019a1f66`
+- **Deployed Package ID**: `0xbd67548019214de91ec4dbb415b3a0a6ad10a6041a03e62e038db4bb0335d9c8`
 - **Network**: Sui Devnet
 
 ### Frontend (Next.js)

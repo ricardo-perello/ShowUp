@@ -384,38 +384,39 @@ export class TransactionExecutor {
     
     const tx = new Transaction();
     
-    // Split coin for participants (2 participants = 2 SUI total)
-    const participantFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(participantFundAmount * 2)]); // 2 SUI total
+    // Split coin for participants (5 participants = 5 SUI total)
+    const participantFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(participantFundAmount * 5)]); // 5 SUI total
     
-    // Split coin for pending requests (1 request = 1 SUI)
-    const pendingFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(pendingFundAmount)]); // 1 SUI
+    // Split coin for pending requests (0 requests = 0 SUI)
+    const pendingFundCoin = tx.splitCoins(tx.gas, [tx.pure.u64(0)]); // 0 SUI
     
     // Create the private mock event
     tx.moveCall({
       target: `${this.packageId}::showup::create_mock_event`,
       arguments: [
-        tx.pure.string("Private Test Event"),
-        tx.pure.string("Testing private event with request workflow"),
-        tx.pure.string("Test Location"),
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 5 * 60), // start_time
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 1 * 60), // registration_start_time
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 4 * 60), // registration_end_time
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 7 * 60), // end_time
+        tx.pure.string("🚀 Sui x BSA Blockchain Workshop 2026"),
+        tx.pure.string("Join us for an exclusive hands-on workshop exploring the latest Sui blockchain innovations, smart contract development, and DeFi protocols. Limited seats available!"),
+        tx.pure.string("BC Building, EPFL"),
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 1 * 60), // start_time (30 minutes from now)
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 0 * 60), // registration_start_time (2 minutes from now)
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 1 * 60), // registration_end_time (20 minutes from now)
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 2 * 60), // end_time (1 hour from now)
         tx.pure.u64(1000000000), // stake_amount
-        tx.pure.u64(3), // capacity
+        tx.pure.u64(10), // capacity
         tx.pure.bool(true), // must_request_to_join
         tx.pure.vector('address', [
           '0x1111111111111111111111111111111111111111111111111111111111111111',
-          '0x2222222222222222222222222222222222222222222222222222222222222222'
-        ]), // participants
+          '0x2222222222222222222222222222222222222222222222222222222222222222',
+          '0x4444444444444444444444444444444444444444444444444444444444444444',
+          '0x5555555555555555555555555555555555555555555555555555555555555555',
+          '0xebe6d9960042e975098605603b730769e6a39078be59767433f1b6b3b918f6cb'
+        ]), // participants (5 people already in)
         tx.pure.vector('address', [
-          '0x1111111111111111111111111111111111111111111111111111111111111111'
-        ]), // attendees
-        tx.pure.vector('address', [
-          '0x3333333333333333333333333333333333333333333333333333333333333333'
-        ]), // pending
-        participantFundCoin, // participant_fund (2 SUI total)
-        pendingFundCoin, // pending_fund (1 SUI)
+          '0xebe6d9960042e975098605603b730769e6a39078be59767433f1b6b3b918f6cb'
+        ]), // attendees (only your account)
+        tx.pure.vector('address', []), // pending (0 requests)
+        participantFundCoin, // participant_fund (5 SUI total)
+        pendingFundCoin, // pending_fund (0 SUI)
       ],
     });
 

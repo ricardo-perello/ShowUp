@@ -149,7 +149,7 @@ export default function CreateEvent() {
         alert('Event creation is still processing. Please check the events page in a moment.');
         router.push('/events');
       } else {
-        alert(`Private mock event created successfully! Event ID: ${eventResult.eventId}\n\nTest scenario:\n- Private event (must request to join)\n- Capacity: 3\n- 2 participants: 0x1...1, 0x2...2\n- 1 attendee: 0x1...1\n- 1 pending request: 0x3...3\n\nYou can now test the request workflow!`);
+        alert(`Private mock event created successfully! Event ID: ${eventResult.eventId}\n\n🎯 CLAIM REWARDS SCENARIO:\n- 🚀 Sui x BSA Blockchain Workshop 2026\n- Event ended - ready for claiming!\n- 5 participants: 0x1...1, 0x2...2, 0x4...4, 0x5...5, 0xebe6...f6cb\n- 1 attendee: 0xebe6...f6cb (YOU)\n- 0 pending requests\n- Total pot: 5 SUI\n- Your reward: 5 SUI (100% of pot)\n- Location: BC Building, EPFL\n\nReady to claim your rewards! 💰`);
         // Navigate to the event page
         router.push(`/events/${eventResult.eventId}`);
       }
@@ -523,22 +523,6 @@ export default function CreateEvent() {
                     Cancel
                   </Button>
                 </Link>
-                <Button 
-                  type="button"
-                  onClick={handleCreateFundedMockEvent}
-                  disabled={loading}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {loading ? 'Creating...' : 'Create Test Event (Funded)'}
-                </Button>
-                <Button 
-                  type="button"
-                  onClick={handleCreatePrivateMockEvent}
-                  disabled={loading}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  {loading ? 'Creating...' : 'Create Private Test Event'}
-                </Button>
               </div>
               <Button 
                 type="submit" 
