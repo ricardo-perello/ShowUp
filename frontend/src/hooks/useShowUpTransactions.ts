@@ -756,14 +756,24 @@ export function useShowUpTransactions() {
     try {
       const tx = transactionExecutor.withdrawFromEventTransaction(eventId);
       
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Withdraw from event transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Withdrawn from event successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Withdraw from event transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Withdrawn from event successfully!',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -782,14 +792,24 @@ export function useShowUpTransactions() {
     try {
       const tx = transactionExecutor.claimPendingStakeTransaction(eventId);
       
-      signAndExecuteTransaction({
-        transaction: tx,
+      // Execute the transaction and return a promise that resolves with the result
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction({
+          transaction: tx,
+        }, {
+          onSuccess: (result) => {
+            console.log('✅ Claim pending stake transaction result:', result);
+            resolve({
+              transactionId: result.digest,
+              message: 'Pending stake claimed successfully!',
+            });
+          },
+          onError: (error) => {
+            console.error('❌ Claim pending stake transaction failed:', error);
+            reject(error);
+          }
+        });
       });
-
-      return {
-        transactionId: 'pending',
-        message: 'Pending stake claimed successfully!',
-      };
     } catch (err) {
       handleError(err);
       throw err;
@@ -966,11 +986,6 @@ export function useShowUpTransactions() {
         1000000000  // 1 SUI for pending request
       );
       
-      console.log('📝 Transaction created, executing...');
-      console.log('🔍 Transaction details:', {
-        packageId: transactionExecutor.packageId,
-        target: `${transactionExecutor.packageId}::showup::create_mock_event`
-      });
       
       // Execute the transaction and return a promise that resolves with the result
       return new Promise((resolve, reject) => {

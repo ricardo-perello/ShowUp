@@ -385,8 +385,16 @@ export default function EventDetailsPage() {
   const eventStatus = getEventStatus();
   const eventStarted = eventStatus === 'ongoing' || eventStatus === 'ended';
   const isCancelled = parseInt(event.end_time as string) === 0;
-  const canJoin = !isOrganizer && !isParticipant && eventStatus === 'upcoming' && !isCancelled;
-  const canRequest = !isOrganizer && !isParticipant && eventStatus === 'upcoming' && !isCancelled && Boolean(event.must_request_to_join);
+  const canJoin = !isOrganizer && !isParticipant && eventStatus === 'upcoming' && !isCancelled && !Boolean(event.must_request_to_join);
+  const hasPendingRequest = pendingRequests.includes(account?.address || '');
+  const canRequest = !isOrganizer && !isParticipant && !hasPendingRequest && eventStatus === 'upcoming' && !isCancelled && Boolean(event.must_request_to_join);
+  
+  // Check if user can claim pending stake (registration ended, has pending request, not already claimed)
+  const canClaimPendingStake = !isOrganizer && 
+                              !isParticipant && 
+                              pendingRequests.includes(account?.address || '') && 
+                              eventStatus !== 'upcoming' && // Registration has ended
+                              !isCancelled;
   
   // Debug logging
   console.log('🎯 Event Status Result:', {
@@ -394,6 +402,14 @@ export default function EventDetailsPage() {
     eventStarted,
     isCancelled,
     isOrganizer,
+    isParticipant,
+    isAttendee,
+    hasClaimed,
+    hasPendingRequest,
+    canJoin,
+    canRequest,
+    canClaimPendingStake,
+    pendingRequests: pendingRequests.length,
     showMarkAttendance: isOrganizer && eventStatus !== 'ended'
   });
 
@@ -549,7 +565,7 @@ export default function EventDetailsPage() {
               )}
 
               {/* Withdraw button for participants before event starts and haven't claimed */}
-              {isParticipant && !eventStarted && !isCancelled && !hasClaimed && (
+              {isParticipant && !eventStarted && !isCancelled && !hasClaimed && !isAttendee && (
                 <Button 
                   onClick={handleWithdraw} 
                   disabled={isWithdrawing}
@@ -559,8 +575,8 @@ export default function EventDetailsPage() {
                 </Button>
               )}
 
-              {/* Claim buttons for participants after event starts */}
-              {isParticipant && eventStarted && !isCancelled && !hasClaimed && (
+              {/* Claim buttons for participants after event ends */}
+              {isParticipant && eventStatus === 'ended' && !isCancelled && !hasClaimed && (
                 <Button 
                   onClick={handleClaim} 
                   disabled={isClaiming || !isAttendee}
@@ -582,7 +598,7 @@ export default function EventDetailsPage() {
               )}
 
               {/* Claim pending stake button */}
-              {!isParticipant && pendingRequests.includes(account?.address || '') && (
+              {canClaimPendingStake && (
                 <Button 
                   onClick={handleClaimPendingStake} 
                   disabled={isClaimingPending}
@@ -677,6 +693,7 @@ export default function EventDetailsPage() {
                   <p>• Participant: {isParticipant ? 'Yes' : 'No'}</p>
                   <p>• Attended: {isAttendee ? 'Yes' : 'No'}</p>
                   <p>• Claimed: {hasClaimed ? 'Yes' : 'No'}</p>
+                  <p>• Requested: {hasPendingRequest ? 'Yes' : 'No'}</p>
                   <p>• Event Status: {isCancelled ? 'Cancelled' : eventStatus === 'ended' ? 'Ended' : eventStatus === 'ongoing' ? 'In Progress' : 'Not Started'}</p>
                 </div>
               </div>

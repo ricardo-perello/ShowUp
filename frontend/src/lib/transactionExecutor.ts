@@ -403,10 +403,10 @@ export class TransactionExecutor {
         tx.pure.string("Private Test Event"),
         tx.pure.string("Testing private event with request workflow"),
         tx.pure.string("Test Location"),
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 7 * 60), // start_time
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 5 * 60), // start_time
         tx.pure.u64(Math.floor(Date.now() / 1000) + 1 * 60), // registration_start_time
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 6 * 60), // registration_end_time
-        tx.pure.u64(Math.floor(Date.now() / 1000) + 8 * 60), // end_time
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 4 * 60), // registration_end_time
+        tx.pure.u64(Math.floor(Date.now() / 1000) + 7 * 60), // end_time
         tx.pure.u64(1000000000), // stake_amount
         tx.pure.u64(3), // capacity
         tx.pure.bool(true), // must_request_to_join

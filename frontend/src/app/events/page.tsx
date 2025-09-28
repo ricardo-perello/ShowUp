@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import { WalletButton } from '@/components/WalletButton';
-import { Calendar, ArrowLeft, Users, Clock, Coins, UserPlus, Eye, Activity } from 'lucide-react';
+import { Calendar, ArrowLeft, Users, Clock, Coins, UserPlus, Eye, Activity, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { EventObject, isUserParticipant } from '@/lib/sui';
 import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
@@ -12,7 +12,7 @@ import { useShowUpTransactions } from '@/hooks/useShowUpTransactions';
 export default function EventsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const { getAllEventsGlobal, refreshGlobalEvents, joinEvent, requestToJoin, loading: transactionLoading } = useShowUpTransactions();
+  const { getAllEventsGlobal, refreshGlobalEvents, joinEvent, requestToJoin, claim, loading: transactionLoading } = useShowUpTransactions();
   const [events, setEvents] = useState<EventObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [participantStatus, setParticipantStatus] = useState<Record<string, boolean>>({});
@@ -125,16 +125,18 @@ export default function EventsPage() {
     const isOrganizerOfEvent = isOrganizer(event);
     const participantCount = Array.isArray(event.participants) ? event.participants.length : 0;
     const isFull = participantCount >= parseInt(event.capacity);
-    
+
     // Can only join if:
     // 1. Not already a participant
     // 2. Not the organizer
     // 3. Registration is still open (upcoming status)
     // 4. Not at capacity
+    // 5. Event is public (not private)
     const canJoin = !isParticipantAlready && 
                    !isOrganizerOfEvent && 
                    status === 'upcoming' && 
-                   !isFull;
+                   !isFull &&
+                   !event.mustRequestToJoin; // Only show join for public events
     
     return canJoin;
   };
@@ -197,6 +199,23 @@ export default function EventsPage() {
       console.error('Error requesting to join event:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Failed to request to join event: ${errorMessage}`);
+    }
+  };
+
+  const handleClaim = async (event: EventObject) => {
+    if (!account) return;
+    
+    try {
+      console.log('💰 Claiming rewards for event:', event.name);
+      
+      await claim(event.id);
+      
+      // Refresh events after claiming
+      await fetchEvents();
+    } catch (error) {
+      console.error('Error claiming rewards:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to claim rewards: ${errorMessage}`);
     }
   };
 
@@ -285,6 +304,12 @@ export default function EventsPage() {
                 const participantCount = Array.isArray(event.participants) ? event.participants.length : 0;
                 const canJoin = canJoinEvent(event);
                 const canRequest = canRequestToJoin(event);
+                
+                // Check if user can claim rewards
+                const isEventParticipant = isParticipant(event);
+                const isAttendee = Array.isArray(event.attendees) ? event.attendees.includes(account?.address || '') : false;
+                const hasClaimed = Array.isArray(event.claimed) ? event.claimed.includes(account?.address || '') : false;
+                const canClaim = isEventParticipant && status === 'ended' && !hasClaimed;
 
 
                 return (
@@ -382,6 +407,15 @@ export default function EventsPage() {
                         <Button variant="outline" className="w-full" disabled>
                           <Clock className="h-4 w-4 mr-2" />
                           Registration Closed
+                        </Button>
+                      ) : canClaim ? (
+                        <Button 
+                          onClick={() => handleClaim(event)}
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          disabled={transactionLoading}
+                        >
+                          <DollarSign className="h-4 w-4 mr-2" />
+                          {transactionLoading ? 'Claiming...' : isAttendee ? 'Claim Rewards' : 'Did Not Attend'}
                         </Button>
                       ) : status === 'ended' ? (
                         <Button variant="outline" className="w-full" disabled>
